@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,8 +17,9 @@ package models
 import "encoding/json"
 
 type ProfileProperty struct {
-	Value PropertyValue `bson:"value" json:"value"`
-	Units Units         `bson:"units" json:"units"`
+	Value     PropertyValue `json:"value"`
+	Units     Units         `json:"units"`
+	MediaType string        `json:"mediaType,omitempty"`
 }
 
 /*

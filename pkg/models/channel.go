@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Technologies Inc.
+ * Copyright 2019 Dell Technologies Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -12,6 +12,7 @@
  * the License.
  *
  *******************************************************************************/
+
 package models
 
 import (
@@ -20,9 +21,9 @@ import (
 
 //TODO - this is ugly and I want to someday have two different structs of EMailChannel and RESTChannel
 type Channel struct {
-	Type          ChannelType `bson:"type,omitempty" json:"type,omitempty"`
-	MailAddresses []string    `bson:"mailAddresses,omitempty" json:"mailAddresses,omitempty"`
-	Url           string      `bson:"url,omitempty" json:"url,omitempty"`
+	Type          ChannelType `json:"type,omitempty"`
+	MailAddresses []string    `json:"mailAddresses,omitempty"`
+	Url           string      `json:"url,omitempty"`
 }
 
 func (c Channel) String() string {

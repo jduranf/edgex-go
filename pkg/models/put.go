@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -22,16 +22,16 @@ import "encoding/json"
  * Put Struct
  */
 type Put struct {
-	Action         `bson:",inline" yaml:",inline"`
-	ParameterNames []string `bson:"parameterNames" json:"parameterNames" yaml:"parameterNames"`
+	Action         `yaml:",inline"`
+	ParameterNames []string `json:"parameterNames" yaml:"parameterNames,omitempty"`
 }
 
 // Custom marshaling to make empty strings null
 func (p Put) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Path           *string    `json:"path"`
-		Responses      []Response `json:"responses"`
-		ParameterNames []string   `json:"parameterNames"`
+		Path           *string    `json:"path,omitempty"`
+		Responses      []Response `json:"responses,omitempty"`
+		ParameterNames []string   `json:"parameterNames,omitempty"`
 		URL            string     `json:"url,omitempty"`
 	}{URL: p.Action.URL}
 

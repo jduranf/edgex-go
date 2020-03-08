@@ -16,7 +16,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 func TestHttpSender(t *testing.T) {
@@ -27,27 +28,27 @@ func TestHttpSender(t *testing.T) {
 
 	var tests = []struct {
 		name string
-		addr models.Addressable
+		addr contract.Addressable
 	}{
-		{"noMethod", models.Addressable{
+		{"noMethod", contract.Addressable{
 			Protocol: "http",
 			Path:     path}},
-		{"get", models.Addressable{
+		{"get", contract.Addressable{
 			Protocol:   "http",
 			HTTPMethod: http.MethodGet,
 			Path:       path}},
-		{"post", models.Addressable{
+		{"post", contract.Addressable{
 			Protocol:   "http",
 			HTTPMethod: http.MethodPost,
 			Path:       path}},
-		{"postInvalidPort", models.Addressable{
+		{"postInvalidPort", contract.Addressable{
 			Protocol:   "http",
 			HTTPMethod: http.MethodPost,
 			Path:       path,
 			Port:       -1}},
 	}
 
-	var addressableTest models.Addressable
+	var addressableTest contract.Addressable
 	var msg = []byte(msgStr)
 
 	for _, tt := range tests {
@@ -98,8 +99,10 @@ func TestHttpSender(t *testing.T) {
 			if addressableTest.Port == 0 {
 				addressableTest.Port = port
 			}
-			sender := NewHTTPSender(addressableTest)
-			sender.Send(msg, nil)
+			sender := newHTTPSender(addressableTest)
+
+			e := models.Event{CorrelationId: "test"}
+			sender.Send(msg, &e)
 		})
 	}
 }

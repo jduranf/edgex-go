@@ -7,14 +7,14 @@
 package notifications
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
-	"strings"
 	"testing"
+
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 // Test common const
@@ -42,8 +42,8 @@ func TestReceiveNotification(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Errorf(TestUnexpectedMsgFormatStr, r.Method, http.MethodPost)
 		}
-		if r.URL.EscapedPath() != NotificationApiPath {
-			t.Errorf(TestUnexpectedMsgFormatStr, r.URL.EscapedPath(), NotificationApiPath)
+		if r.URL.EscapedPath() != clients.ApiNotificationRoute {
+			t.Errorf(TestUnexpectedMsgFormatStr, r.URL.EscapedPath(), clients.ApiNotificationRoute)
 		}
 
 		result, _ := ioutil.ReadAll(r.Body)
@@ -92,19 +92,8 @@ func TestReceiveNotification(t *testing.T) {
 
 	defer ts.Close()
 
-	u, err := url.Parse(ts.URL)
-	if err != nil {
-		t.Error(err.Error())
-	}
-
-	h := strings.Split(u.Host, ":")
-
-	intPort, e := strconv.Atoi(h[1])
-	if e != nil {
-		t.Error(e)
-	}
-
-	SetConfiguration(h[0], intPort)
+	url := ts.URL + clients.ApiNotificationRoute
+	nc := NewNotificationsClient(url)
 
 	notification := Notification{
 		Sender:      TestNotificationSender,
@@ -116,5 +105,5 @@ func TestReceiveNotification(t *testing.T) {
 		Labels:      []string{TestNotificationLabel1, TestNotificationLabel2},
 	}
 
-	GetNotificationsClient().SendNotification(notification)
+	nc.SendNotification(notification, context.Background())
 }

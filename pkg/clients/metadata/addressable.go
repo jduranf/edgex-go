@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,18 +11,15 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
+
 package metadata
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
 	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
@@ -30,119 +27,59 @@ import (
 Addressable client for interacting with the addressable section of metadata
 */
 type AddressableClient interface {
-	Add(addr *models.Addressable) (string, error)
-	AddressableForName(name string) (models.Addressable, error)
+	Add(addr *models.Addressable, ctx context.Context) (string, error)
+	Addressable(id string, ctx context.Context) (models.Addressable, error)
+	AddressableForName(name string, ctx context.Context) (models.Addressable, error)
+	Update(addr models.Addressable, ctx context.Context) error
+	Delete(id string, ctx context.Context) error
 }
 
 type AddressableRestClient struct {
-	url      string
-	endpoint clients.Endpointer
+	url string
 }
 
 /*
 Return an instance of AddressableClient
 */
-func NewAddressableClient(params types.EndpointParams, m clients.Endpointer) AddressableClient {
-	a := AddressableRestClient{endpoint: m}
-	a.init(params)
+func NewAddressableClient(url string) AddressableClient {
+	a := AddressableRestClient{url: url}
 	return &a
 }
 
-func (a *AddressableRestClient) init(params types.EndpointParams) {
-	if params.UseRegistry {
-		ch := make(chan string, 1)
-		go a.endpoint.Monitor(params, ch)
-		go func(ch chan string) {
-			for {
-				select {
-				case url := <-ch:
-					a.url = url
-				}
-			}
-		}(ch)
-	} else {
-		a.url = params.Url
+// Helper method to request and decode an addressable
+func (a *AddressableRestClient) requestAddressable(url string, ctx context.Context) (models.Addressable, error) {
+	data, err := clients.GetRequest(url, ctx)
+	if err != nil {
+		return models.Addressable{}, err
 	}
+
+	add := models.Addressable{}
+	err = json.Unmarshal(data, &add)
+	return add, err
 }
 
 // Add an addressable - handle error codes
 // Returns the ID of the addressable and an error
-func (a *AddressableRestClient) Add(addr *models.Addressable) (string, error) {
-	// Marshal the addressable to JSON
-	jsonStr, err := json.Marshal(addr)
-	if err != nil {
-		return "", err
-	}
-
-	client := &http.Client{}
-	resp, err := client.Post(a.url, "application/json", bytes.NewReader(jsonStr))
-	if err != nil {
-		return "", err
-	}
-	if resp == nil {
-		return "", ErrResponseNil
-	}
-	defer resp.Body.Close()
-
-	// Get the response body
-	bodyBytes, err := getBody(resp)
-	if err != nil {
-		return "", err
-	}
-	bodyString := string(bodyBytes)
-
-	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(string(bodyString))
-	}
-
-	return bodyString, err
+func (a *AddressableRestClient) Add(addr *models.Addressable, ctx context.Context) (string, error) {
+	return clients.PostJsonRequest(a.url, addr, ctx)
 }
 
-// Helper method to decode an addressable and return the addressable
-func (d *AddressableRestClient) decodeAddressable(resp *http.Response) (models.Addressable, error) {
-	dec := json.NewDecoder(resp.Body)
-	addr := models.Addressable{}
-
-	err := dec.Decode(&addr)
-	if err != nil {
-		return models.Addressable{}, err
-	}
-
-	return addr, err
+// Get an addressable by id
+func (a *AddressableRestClient) Addressable(id string, ctx context.Context) (models.Addressable, error) {
+	return a.requestAddressable(a.url+"/"+id, ctx)
 }
-
-// TODO: make method signatures consistent wrt to error return value
-// ie. use it everywhere, or not at all!
 
 // Get the addressable by name
-func (a *AddressableRestClient) AddressableForName(name string) (models.Addressable, error) {
-	req, err := http.NewRequest(http.MethodGet, a.url+"/name/"+url.QueryEscape(name), nil)
-	if err != nil {
-		return models.Addressable{}, err
-	}
+func (a *AddressableRestClient) AddressableForName(name string, ctx context.Context) (models.Addressable, error) {
+	return a.requestAddressable(a.url+"/name/"+url.QueryEscape(name), ctx)
+}
 
-	resp, err := makeRequest(req)
+// Update a addressable
+func (a *AddressableRestClient) Update(addr models.Addressable, ctx context.Context) error {
+	return clients.UpdateRequest(a.url, addr, ctx)
+}
 
-	// Check response
-	if resp == nil {
-		return models.Addressable{}, ErrResponseNil
-	}
-	defer resp.Body.Close()
-	if err != nil {
-		fmt.Printf("AddressableForName makeRequest failed: %v\n", err)
-		return models.Addressable{}, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		// Get the response body
-		bodyBytes, err := getBody(resp)
-		if err != nil {
-			return models.Addressable{}, err
-		}
-		bodyString := string(bodyBytes)
-
-		return models.Addressable{}, errors.New(bodyString)
-	}
-
-	return a.decodeAddressable(resp)
+// Delete a addressable (specified by id)
+func (a *AddressableRestClient) Delete(id string, ctx context.Context) error {
+	return clients.DeleteRequest(a.url+"/id/"+id, ctx)
 }

@@ -7,49 +7,83 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	"github.com/go-zoo/bone"
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/gorilla/mux"
+
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
-const (
-	apiV1Registration = "/api/v1/registration"
-	apiV1Ping         = "/api/v1/ping"
-)
+// Test if the service is working
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("pong"))
+}
 
-func replyPing(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	str := `pong`
-	io.WriteString(w, str)
+func configHandler(w http.ResponseWriter, _ *http.Request) {
+	encode(Configuration, w)
+}
+
+// Helper function for encoding things for returning from REST calls
+func encode(i interface{}, w http.ResponseWriter) {
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	err := enc.Encode(i)
+	// Problems encoding
+	if err != nil {
+		LoggingClient.Error("Error encoding the data: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	s := telemetry.NewSystemUsage()
+
+	encode(s, w)
+
+	return
 }
 
 // HTTPServer function
 func httpServer() http.Handler {
-	mux := bone.New()
+	r := mux.NewRouter()
 
-	mux.Get(apiV1Ping, http.HandlerFunc(replyPing))
+	// Ping Resource
+	r.HandleFunc(clients.ApiPingRoute, pingHandler).Methods(http.MethodGet)
+
+	// Configuration
+	r.HandleFunc(clients.ApiConfigRoute, configHandler).Methods(http.MethodGet)
+
+	// Metrics
+	r.HandleFunc(clients.ApiMetricsRoute, metricsHandler).Methods(http.MethodGet)
 
 	// Registration
-	mux.Get(apiV1Registration+"/:id", http.HandlerFunc(getRegByID))
-	mux.Get(apiV1Registration+"/reference/:type", http.HandlerFunc(getRegList))
-	mux.Get(apiV1Registration, http.HandlerFunc(getAllReg))
-	mux.Get(apiV1Registration+"/name/:name", http.HandlerFunc(getRegByName))
-	mux.Post(apiV1Registration, http.HandlerFunc(addReg))
-	mux.Put(apiV1Registration, http.HandlerFunc(updateReg))
-	mux.Delete(apiV1Registration+"/id/:id", http.HandlerFunc(delRegByID))
-	mux.Delete(apiV1Registration+"/name/:name", http.HandlerFunc(delRegByName))
+	r.HandleFunc(clients.ApiRegistrationRoute, getAllReg).Methods(http.MethodGet)
+	r.HandleFunc(clients.ApiRegistrationRoute, addReg).Methods(http.MethodPost)
+	r.HandleFunc(clients.ApiRegistrationRoute, updateReg).Methods(http.MethodPut)
+	reg := r.PathPrefix(clients.ApiRegistrationRoute).Subrouter()
+	reg.HandleFunc("/{id}", getRegByID).Methods(http.MethodGet)
+	reg.HandleFunc("/reference/{type}", getRegList).Methods(http.MethodGet)
+	reg.HandleFunc("/name/{name}", getRegByName).Methods(http.MethodGet)
+	reg.HandleFunc("/id/{id}", delRegByID).Methods(http.MethodDelete)
+	reg.HandleFunc("/name/{name}", delRegByName).Methods(http.MethodDelete)
 
-	return mux
+	r.Use(correlation.ManageHeader)
+	r.Use(correlation.OnResponseComplete)
+	r.Use(correlation.OnRequestBegin)
+
+	return r
 }
 
-func StartHTTPServer(config ConfigurationStruct, errChan chan error) {
+func StartHTTPServer(errChan chan error) {
 	go func() {
-		p := fmt.Sprintf(":%d", config.Port)
-		logger.Info("Starting Export Client", zap.String("url", p))
+		p := fmt.Sprintf(":%d", Configuration.Service.Port)
 		errChan <- http.ListenAndServe(p, httpServer())
 	}()
 }

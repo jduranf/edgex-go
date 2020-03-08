@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -25,7 +25,7 @@ func TestBaseObject_String(t *testing.T) {
 		baseObject *BaseObject
 		want       string
 	}{
-		{"empty base", &EmptyBaseObject, "{\"created\":0,\"modified\":0,\"origin\":0}"},
+		{"empty base", &EmptyBaseObject, "{}"},
 		{"populated base", &TestBaseObject, "{\"created\":123,\"modified\":123,\"origin\":123}"},
 	}
 	for _, tt := range tests {

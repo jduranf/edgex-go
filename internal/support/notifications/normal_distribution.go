@@ -16,27 +16,8 @@
 package notifications
 
 import (
-	"strconv"
-
 	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
-
-func startNormalDistributing() error {
-	LoggingClient.Info("Normal severity scheduler is triggered.")
-	nm, err := dbClient.NotificationsNewNormal(limitMax)
-	if err != nil {
-		LoggingClient.Error("Normal distribution of notifications failed: unable to get NEW notifications")
-	}
-	for _, n := range nm {
-		err = distributeAndMark(n)
-		if err != nil {
-			return err
-		}
-	}
-	LoggingClient.Debug("Processed " + strconv.Itoa(len(nm)) + " new notifications")
-	LoggingClient.Info("Normal severity scheduler has completed.")
-	return nil
-}
 
 func distributeAndMark(n models.Notification) error {
 	err := distribute(n)

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,8 +27,7 @@ var TestManufacturer = "Test Manufacturer"
 var TestModel = "Test Model"
 var TestProfileLabels = []string{"labe1", "label2"}
 var TestProfileDescription = "Test Description"
-var TestObjects = "{key1:value1, key2:value2}"
-var TestProfile = DeviceProfile{DescribedObject: TestDescribedObject, Name: TestProfileName, Manufacturer: TestManufacturer, Model: TestModel, Labels: TestProfileLabels, Objects: TestObjects, DeviceResources: []DeviceObject{TestDeviceObject}, Resources: []ProfileResource{TestProfileResource}, Commands: []Command{TestCommand}}
+var TestProfile = DeviceProfile{DescribedObject: TestDescribedObject, Name: TestProfileName, Manufacturer: TestManufacturer, Model: TestModel, Labels: TestProfileLabels, DeviceResources: []DeviceResource{TestDeviceResource}, Resources: []ProfileResource{TestProfileResource}, Commands: []Command{TestCommand}}
 
 func TestDeviceProfile_MarshalJSON(t *testing.T) {
 	var emptyDeviceProfile = DeviceProfile{}
@@ -69,13 +68,11 @@ func TestDeviceProfile_String(t *testing.T) {
 				",\"modified\":" + strconv.FormatInt(TestDescribedObject.Modified, 10) +
 				",\"origin\":" + strconv.FormatInt(TestDescribedObject.Origin, 10) +
 				",\"description\":\"" + TestDescribedObject.Description + "\"" +
-				",\"id\":\"\"" +
 				",\"name\":\"" + TestProfileName + "\"" +
 				",\"manufacturer\":\"" + TestManufacturer + "\"" +
 				",\"model\":\"" + TestModel + "\"" +
 				",\"labels\":" + fmt.Sprint(string(labelSlice)) +
-				",\"objects\":\"" + TestObjects + "\"" +
-				",\"deviceResources\":[" + TestDeviceObject.String() + "]" +
+				",\"deviceResources\":[" + TestDeviceResource.String() + "]" +
 				",\"resources\":[" + TestProfileResource.String() + "]" +
 				",\"commands\":[" + TestCommand.String() + "]" +
 				"}"},

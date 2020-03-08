@@ -1,5 +1,6 @@
 //
 // Copyright (c) 2018 Tencent
+// Copyright (c) 2019 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -8,85 +9,139 @@ package client
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
+	"sync"
+	"time"
+
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/export/distro"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
 
 	"github.com/edgexfoundry/edgex-go/internal"
 	"github.com/edgexfoundry/edgex-go/internal/export"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/consul"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/memory"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/db/bolt"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db/mongo"
-
-	"go.uber.org/zap"
-)
-
-const (
-	PingApiPath = "/api/v1/ping"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
 // Global variables
-var dbc export.DBClient
-var logger *zap.Logger
+var dbClient export.DBClient
+var LoggingClient logger.LoggingClient
+var Configuration *ConfigurationStruct
+var dc distro.DistroClient
 
-func ConnectToConsul(conf ConfigurationStruct) error {
-	// Initialize service on Consul
-	err := consulclient.ConsulInit(consulclient.ConsulConfig{
-		ServiceName:    internal.ExportClientServiceKey,
-		ServicePort:    conf.Port,
-		ServiceAddress: conf.Hostname,
-		CheckAddress:   "http://" + conf.Hostname + ":" + strconv.Itoa(conf.Port) + PingApiPath,
-		CheckInterval:  conf.CheckInterval,
-		ConsulAddress:  conf.ConsulHost,
-		ConsulPort:     conf.ConsulPort,
-	})
+func Retry(useProfile string, timeout int, wait *sync.WaitGroup, ch chan error) {
+	until := time.Now().Add(time.Millisecond * time.Duration(timeout))
+	for time.Now().Before(until) {
+		var err error
+		// When looping, only handle configuration if it hasn't already been set.
+		if Configuration == nil {
+			Configuration, err = initializeConfiguration(useProfile)
+			if err != nil {
+				ch <- err
 
-	if err != nil {
-		return fmt.Errorf("connection to Consul could not be made: %v", err.Error())
-	} else {
-		// Update configuration data from Consul
-		if err := consulclient.CheckKeyValuePairs(&conf, internal.ExportClientServiceKey, strings.Split(conf.ConsulProfilesActive, ";")); err != nil {
-			return fmt.Errorf("error getting key/values from Consul: %v", err.Error())
+				// Error occurred when attempting to read from local filesystem. Fail fast.
+				close(ch)
+				wait.Done()
+				return
+			} else {
+				// Setup Logging
+				logTarget := setLoggingTarget()
+				LoggingClient = logger.NewClient(internal.ExportClientServiceKey, Configuration.Logging.EnableRemote, logTarget, Configuration.Writable.LogLevel)
+
+				// Initialize service clients
+				initializeClients()
+			}
 		}
+
+		// Only attempt to connect to database if configuration has been populated
+		if Configuration != nil {
+			err := connectToDatabase()
+			if err != nil {
+				ch <- err
+			} else {
+				break
+			}
+		}
+		time.Sleep(time.Second * time.Duration(1))
 	}
-	return nil
+	close(ch)
+	wait.Done()
+
+	return
 }
 
-func Init(conf ConfigurationStruct, l *zap.Logger) error {
-	configuration = conf
-	logger = l
-
-	// Create a database client
-	dbConfig := db.Configuration{
-		Host:         conf.MongoURL,
-		Port:         conf.MongoPort,
-		Timeout:      conf.MongoConnectTimeout,
-		DatabaseName: conf.MongoDatabaseName,
-		Username:     conf.MongoUsername,
-		Password:     conf.MongoPassword,
+func Init() bool {
+	if Configuration == nil || dbClient == nil {
+		return false
 	}
+
+	go telemetry.StartCpuUsageAverage()
+
+	return true
+}
+
+func Destruct() {
+	if dbClient != nil {
+		dbClient.CloseSession()
+		dbClient = nil
+	}
+}
+
+func connectToDatabase() error {
+	// Create a database client
 	var err error
-	dbc, err = newDBClient(conf.DBType, dbConfig)
+	dbConfig := db.Configuration{
+		Host:         Configuration.Databases["Primary"].Host,
+		Port:         Configuration.Databases["Primary"].Port,
+		Timeout:      Configuration.Databases["Primary"].Timeout,
+		DatabaseName: Configuration.Databases["Primary"].Name,
+		Username:     Configuration.Databases["Primary"].Username,
+		Password:     Configuration.Databases["Primary"].Password,
+	}
+	dbClient, err = newDBClient(Configuration.Databases["Primary"].Type, dbConfig)
 	if err != nil {
-		dbc = nil
+		dbClient = nil
 		return fmt.Errorf("couldn't create database client: %v", err.Error())
 	}
 
-	// Connect to the database
-	err = dbc.Connect()
-	if err != nil {
-		dbc = nil
-		return fmt.Errorf("couldn't connect to database: %v", err.Error())
-	}
-
-	return nil
+	return err
 }
 
-func Destroy() {
-	if dbc != nil {
-		dbc.CloseSession()
-		dbc = nil
+// Return the dbClient interface
+func newDBClient(dbType string, config db.Configuration) (export.DBClient, error) {
+	switch dbType {
+	case db.MongoDB:
+		return mongo.NewClient(config)
+	case db.BoltDB:
+		return bolt.NewClient(config)
+	default:
+		return nil, db.ErrUnsupportedDatabase
 	}
+}
+
+func initializeConfiguration(useProfile string) (*ConfigurationStruct, error) {
+	configuration := &ConfigurationStruct{}
+	err := config.LoadFromFile(useProfile, configuration)
+	if err != nil {
+		return nil, err
+	}
+
+	return configuration, nil
+}
+
+func initializeClients() {
+	// Create export-distro client
+	url := Configuration.Clients["Distro"].Url() + clients.ApiNotifyRegistrationRoute
+	dc = distro.NewDistroClient(url)
+}
+
+func setLoggingTarget() string {
+	if Configuration.Logging.EnableRemote {
+		return Configuration.Clients["Logging"].Url() + clients.ApiLoggingRoute
+	}
+	return Configuration.Logging.File
 }
 
 // Return the dbClient interface

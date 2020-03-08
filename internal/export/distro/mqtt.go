@@ -11,13 +11,13 @@ package distro
 
 import (
 	"crypto/tls"
+	"fmt"
 	"strconv"
 	"strings"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
-	"github.com/edgexfoundry/edgex-go/internal/export/interfaces"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 type mqttSender struct {
@@ -25,9 +25,8 @@ type mqttSender struct {
 	topic  string
 }
 
-// NewMqttSender - create new mqtt sender
-func NewMqttSender(addr models.Addressable) interfaces.Sender {
-
+// newMqttSender - create new mqtt sender
+func newMqttSender(addr contract.Addressable, cert string, key string) sender {
 	protocol := strings.ToLower(addr.Protocol)
 
 	opts := MQTT.NewClientOptions()
@@ -38,21 +37,27 @@ func NewMqttSender(addr models.Addressable) interfaces.Sender {
 	opts.SetPassword(addr.Password)
 	opts.SetAutoReconnect(false)
 
-	if protocol == "tcps" ||
-		protocol == "ssl" ||
-		protocol == "tls" {
+	if protocol == "tcps" || protocol == "ssl" || protocol == "tls" {
+		tlsConfig := &tls.Config{}
+		if cert == "" || key == "" {
+			tlsConfig = &tls.Config{
+				ClientCAs:          nil,
+				InsecureSkipVerify: true,
+			}
+		} else {
 
-		cert, err := tls.LoadX509KeyPair(configuration.MQTTSCert, configuration.MQTTSKey)
+			cert, err := tls.LoadX509KeyPair(cert, key)
 
-		if err != nil {
-			logger.Error("Failed loading x509 data")
-			return nil
-		}
+			if err != nil {
+				LoggingClient.Error("Failed loading x509 data")
+				return nil
+			}
 
-		tlsConfig := &tls.Config{
-			ClientCAs:          nil,
-			InsecureSkipVerify: true,
-			Certificates:       []tls.Certificate{cert},
+			tlsConfig = &tls.Config{
+				ClientCAs:          nil,
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{cert},
+			}
 		}
 
 		opts.SetTLSConfig(tlsConfig)
@@ -69,9 +74,9 @@ func NewMqttSender(addr models.Addressable) interfaces.Sender {
 
 func (sender *mqttSender) Send(data []byte, event *models.Event) bool {
 	if !sender.client.IsConnected() {
-		logger.Info("Connecting to mqtt server")
+		LoggingClient.Info("Connecting to mqtt server")
 		if token := sender.client.Connect(); token.Wait() && token.Error() != nil {
-			logger.Warn("Could not connect to mqtt server, drop event", zap.Error(token.Error()))
+			LoggingClient.Error(fmt.Sprintf("Could not connect to mqtt server, drop event. Error: %s", token.Error().Error()))
 			return false
 		}
 	}
@@ -80,10 +85,10 @@ func (sender *mqttSender) Send(data []byte, event *models.Event) bool {
 	// FIXME: could be removed? set of tokens?
 	token.Wait()
 	if token.Error() != nil {
-		logger.Warn("mqtt error: ", zap.Error(token.Error()))
+		LoggingClient.Error(token.Error().Error())
 		return false
 	} else {
-		logger.Debug("Sent data: ", zap.ByteString("data", data))
+		LoggingClient.Info(fmt.Sprintf("Sent data to mqtt server"))
 		return true
 	}
 }

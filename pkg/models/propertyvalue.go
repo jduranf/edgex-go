@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -19,46 +19,40 @@ import (
 )
 
 type PropertyValue struct {
-	Type         string `bson:"type" json:"type"`                                     // ValueDescriptor Type of property after transformations
-	ReadWrite    string `bson:"readWrite" json:"readWrite" yaml:"readWrite"`          // Read/Write Permissions set for this property
-	Minimum      string `bson:"minimum" json:"minimum"`                               // Minimum value that can be get/set from this property
-	Maximum      string `bson:"maximum" json:"maximum"`                               // Maximum value that can be get/set from this property
-	DefaultValue string `bson:"defaultValue" json:"defaultValue" yaml:"defaultValue"` // Default value set to this property if no argument is passed
-	Size         string `bson:"size" json:"size"`                                     // Size of this property in its type  (i.e. bytes for numeric types, characters for string types)
-	Word         string `bson:"word" json:"word"`                                     // Word size of property used for endianness
-	LSB          string `bson:"lsb" json:"lsb"`                                       // Endianness setting for a property
-	Mask         string `bson:"mask" json:"mask"`                                     // Mask to be applied prior to get/set of property
-	Shift        string `bson:"shift" json:"shift"`                                   // Shift to be applied after masking, prior to get/set of property
-	Scale        string `bson:"scale" json:"scale"`                                   // Multiplicative factor to be applied after shifting, prior to get/set of property
-	Offset       string `bson:"offset" json:"offset"`                                 // Additive factor to be applied after multiplying, prior to get/set of property
-	Base         string `bson:"base" json:"base"`                                     // Base for property to be applied to, leave 0 for no power operation (i.e. base ^ property: 2 ^ 10)
-	Assertion    string `bson:"assertion" json:"assertion"`                           // Required value of the property, set for checking error state.  Failing an assertion condition will mark the device with an error state
-	Signed       bool   `bson:"signed" json:"signed"`                                 // Treat the property as a signed or unsigned value
-	Precision    string `bson:"precision" json:"precision"`
+	Type          string `json:"type" yaml:"type,omitempty"`                   // ValueDescriptor Type of property after transformations
+	ReadWrite     string `json:"readWrite" yaml:"readWrite,omitempty"`         // Read/Write Permissions set for this property
+	Minimum       string `json:"minimum" yaml:"minimum,omitempty"`             // Minimum value that can be get/set from this property
+	Maximum       string `json:"maximum" yaml:"maximum,omitempty"`             // Maximum value that can be get/set from this property
+	DefaultValue  string `json:"defaultValue" yaml:"defaultValue,omitempty"`   // Default value set to this property if no argument is passed
+	Size          string `json:"size" yaml:"size,omitempty"`                   // Size of this property in its type  (i.e. bytes for numeric types, characters for string types)
+	Mask          string `json:"mask" yaml:"mask,omitempty"`                   // Mask to be applied prior to get/set of property
+	Shift         string `json:"shift" yaml:"shift,omitempty"`                 // Shift to be applied after masking, prior to get/set of property
+	Scale         string `json:"scale" yaml:"scale,omitempty"`                 // Multiplicative factor to be applied after shifting, prior to get/set of property
+	Offset        string `json:"offset" yaml:"offset,omitempty"`               // Additive factor to be applied after multiplying, prior to get/set of property
+	Base          string `json:"base" yaml:"base,omitempty"`                   // Base for property to be applied to, leave 0 for no power operation (i.e. base ^ property: 2 ^ 10)
+	Assertion     string `json:"assertion" yaml:"assertion,omitempty"`         // Required value of the property, set for checking error state.  Failing an assertion condition will mark the device with an error state
+	Precision     string `json:"precision" yaml:"precision,omitempty"`
+	FloatEncoding string `json:"floatEncoding" yaml:"floatEncoding,omitempty"` // FloatEncoding indicates the representation of floating value of reading.  It should be 'Base64' or 'eNotation'
 }
 
 // Custom marshaling to make empty strings null
 func (pv PropertyValue) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Type         *string `json:"type"`         // ValueDescriptor Type of property after transformations
-		ReadWrite    *string `json:"readWrite"`    // Read/Write Permissions set for this property
-		Minimum      *string `json:"minimum"`      // Minimum value that can be get/set from this property
-		Maximum      *string `json:"maximum"`      // Maximum value that can be get/set from this property
-		DefaultValue *string `json:"defaultValue"` // Default value set to this property if no argument is passed
-		Size         *string `json:"size"`         // Size of this property in its type  (i.e. bytes for numeric types, characters for string types)
-		Word         *string `json:"word"`         // Word size of property used for endianness
-		LSB          *string `json:"lsb"`          // Endianness setting for a property
-		Mask         *string `json:"mask"`         // Mask to be applied prior to get/set of property
-		Shift        *string `json:"shift"`        // Shift to be applied after masking, prior to get/set of property
-		Scale        *string `json:"scale"`        // Multiplicative factor to be applied after shifting, prior to get/set of property
-		Offset       *string `json:"offset"`       // Additive factor to be applied after multiplying, prior to get/set of property
-		Base         *string `json:"base"`         // Base for property to be applied to, leave 0 for no power operation (i.e. base ^ property: 2 ^ 10)
-		Assertion    *string `json:"assertion"`    // Required value of the property, set for checking error state.  Failing an assertion condition will mark the device with an error state
-		Signed       bool    `json:"signed"`       // Treat the property as a signed or unsigned value
-		Precision    *string `json:"precision"`
-	}{
-		Signed: pv.Signed,
-	}
+		Type          *string `json:"type,omitempty"`         // ValueDescriptor Type of property after transformations
+		ReadWrite     *string `json:"readWrite,omitempty"`    // Read/Write Permissions set for this property
+		Minimum       *string `json:"minimum,omitempty"`      // Minimum value that can be get/set from this property
+		Maximum       *string `json:"maximum,omitempty"`      // Maximum value that can be get/set from this property
+		DefaultValue  *string `json:"defaultValue,omitempty"` // Default value set to this property if no argument is passed
+		Size          *string `json:"size,omitempty"`         // Size of this property in its type  (i.e. bytes for numeric types, characters for string types)
+		Mask          *string `json:"mask,omitempty"`         // Mask to be applied prior to get/set of property
+		Shift         *string `json:"shift,omitempty"`        // Shift to be applied after masking, prior to get/set of property
+		Scale         *string `json:"scale,omitempty"`        // Multiplicative factor to be applied after shifting, prior to get/set of property
+		Offset        *string `json:"offset,omitempty"`       // Additive factor to be applied after multiplying, prior to get/set of property
+		Base          *string `json:"base,omitempty"`         // Base for property to be applied to, leave 0 for no power operation (i.e. base ^ property: 2 ^ 10)
+		Assertion     *string `json:"assertion,omitempty"`    // Required value of the property, set for checking error state.  Failing an assertion condition will mark the device with an error state
+		Precision     *string `json:"precision,omitempty"`
+		FloatEncoding *string `json:"floatEncoding,omitempty"`
+	}{}
 
 	// Empty strings are null
 	if pv.Type != "" {
@@ -78,12 +72,6 @@ func (pv PropertyValue) MarshalJSON() ([]byte, error) {
 	}
 	if pv.Size != "" {
 		test.Size = &pv.Size
-	}
-	if pv.Word != "" {
-		test.Word = &pv.Word
-	}
-	if pv.LSB != "" {
-		test.LSB = &pv.LSB
 	}
 	if pv.Mask != "" {
 		test.Mask = &pv.Mask
@@ -106,6 +94,9 @@ func (pv PropertyValue) MarshalJSON() ([]byte, error) {
 	if pv.Precision != "" {
 		test.Precision = &pv.Precision
 	}
+	if pv.FloatEncoding != "" {
+		test.FloatEncoding = &pv.FloatEncoding
+	}
 
 	return json.Marshal(test)
 }
@@ -119,46 +110,4 @@ func (pv PropertyValue) String() string {
 		return err.Error()
 	}
 	return string(out)
-}
-
-// Custom unmarshaling to handle default values
-func (p *PropertyValue) UnmarshalJSON(data []byte) error {
-	type testAlias PropertyValue
-	test := testAlias{Word: "2", Mask: "0x00", Shift: "0", Scale: "1.0", Offset: "0.0", Base: "0", Signed: true}
-	if err := json.Unmarshal(data, &test); err != nil {
-		return err
-	}
-
-	// Set the default values
-	//	if test.Word == "" {test.Word = "2"}
-	//	if test.Mask == "" {test.Mask = "0x00"}
-	//	if test.Shift == "" {test.Shift = "0"}
-	//	if test.Scale == "" {test.Scale = "1.0"}
-	//	if test.Offset == "" {test.Offset = "0.0"}
-	//	if test.Base == "" {test.Base = "0"}
-
-	*p = PropertyValue(test)
-
-	return nil
-}
-
-// Custom YAML unmarshaling
-func (p *PropertyValue) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type testAlias PropertyValue
-	test := testAlias{Word: "2", Mask: "0x00", Shift: "0", Scale: "1.0", Offset: "0.0", Base: "0", Signed: true}
-	if err := unmarshal(&test); err != nil {
-		return err
-	}
-
-	// Set the default values
-	//	if test.Word == "" {test.Word = "2"}
-	//	if test.Mask == "" {test.Mask = "0x00"}
-	//	if test.Shift == "" {test.Shift = "0"}
-	//	if test.Scale == "" {test.Scale = "1.0"}
-	//	if test.Offset == "" {test.Offset = "0.0"}
-	//	if test.Base == "" {test.Base = "0"}
-
-	*p = PropertyValue(test)
-
-	return nil
 }

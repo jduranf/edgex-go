@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -57,7 +57,7 @@ func TestCommand_String(t *testing.T) {
 			"{\"created\":" + strconv.FormatInt(TestCommand.Created, 10) +
 				",\"modified\":" + strconv.FormatInt(TestCommand.Modified, 10) +
 				",\"origin\":" + strconv.FormatInt(TestCommand.Origin, 10) +
-				",\"id\":null,\"name\":\"" + TestCommand.Name + "\"" +
+				",\"name\":\"" + TestCommand.Name + "\"" +
 				",\"get\":" + TestGet.String() +
 				",\"put\":" + TestPut.String() + "}"},
 	}

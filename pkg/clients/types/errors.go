@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,6 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
+
 package types
 
 import "fmt"
@@ -18,7 +19,13 @@ import "fmt"
 type ErrNotFound struct{}
 
 func (e ErrNotFound) Error() string {
-	return "item not found"
+	return "Item not found"
+}
+
+type ErrResponseNil struct{}
+
+func (e ErrResponseNil) Error() string {
+	return "Response was nil"
 }
 
 type ErrServiceClient struct {

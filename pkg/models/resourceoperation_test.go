@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,12 +24,11 @@ import (
 var TestResourceIndex = "test index"
 var TestOperation = "test operation"
 var TestResourceObject = "test resource object"
-var TestProperty = "test property"
 var TestParameter = "test parameter"
 var TestResource = "test resource"
 var TestSecondary = []string{"test secondary"}
 var TestMappings = make(map[string]string)
-var TestResourceOperation = ResourceOperation{Index: TestResourceIndex, Operation: TestOperation, Object: TestResourceObject, Property: TestProperty, Parameter: TestParameter, Resource: TestResource, Secondary: TestSecondary, Mappings: TestMappings}
+var TestResourceOperation = ResourceOperation{Index: TestResourceIndex, Operation: TestOperation, Object: TestResourceObject, Parameter: TestParameter, Resource: TestResource, Secondary: TestSecondary, Mappings: TestMappings}
 
 func TestResourceOperation_MarshalJSON(t *testing.T) {
 	var testResourceOperationBytes = []byte(TestResourceOperation.String())
@@ -66,11 +65,9 @@ func TestResourceOperation_String(t *testing.T) {
 			"{\"index\":\"" + TestResourceIndex + "\"" +
 				",\"operation\":\"" + TestOperation + "\"" +
 				",\"object\":\"" + TestResourceObject + "\"" +
-				",\"property\":\"" + TestProperty + "\"" +
 				",\"parameter\":\"" + TestParameter + "\"" +
 				",\"resource\":\"" + TestResource + "\"" +
-				",\"secondary\":" + fmt.Sprint(string(secondarySlice)) +
-				",\"mappings\":{}}"},
+				",\"secondary\":" + fmt.Sprint(string(secondarySlice)) + "}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

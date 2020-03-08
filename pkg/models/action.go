@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -19,9 +19,9 @@ import (
 )
 
 type Action struct {
-	Path      string     `bson:"path" json:"path"`           // path used by service for action on a device or sensor
-	Responses []Response `bson:"responses" json:"responses"` // responses from get or put requests to service
-	URL       string     `json:"url,omitempty"`              // url for requests from command service
+	Path      string     `json:"path" yaml:"path,omitempty"`           // path used by service for action on a device or sensor
+	Responses []Response `json:"responses" yaml:"responses,omitempty"` // responses from get or put requests to service
+	URL       string     `json:"url,omitempty" yaml:"url,omitempty"`   // url for requests from command service
 }
 
 /*

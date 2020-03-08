@@ -3,6 +3,7 @@
 // Cavium
 // Mainflux
 // IOTech
+// Copyright (c) 2018 Dell Technologies, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,34 +15,38 @@ package distro
 //   registration channel)
 
 import (
+	"context"
 	"fmt"
-	"github.com/edgexfoundry/edgex-go/internal/export"
-	"github.com/edgexfoundry/edgex-go/internal/export/interfaces"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
 	"net/http"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
-var registrationChanges chan export.NotifyUpdate = make(chan export.NotifyUpdate, 2)
+const (
+	awsMQTTPort         int    = 8883
+	awsThingUpdateTopic string = "$aws/things/%s/shadow/update"
+)
+
+var registrationChanges chan contract.NotifyUpdate = make(chan contract.NotifyUpdate, 2)
 
 // RegistrationInfo - registration info
 type registrationInfo struct {
-	registration export.Registration
-	format       interfaces.Formatter
-	compression  interfaces.Transformer
-	encrypt      interfaces.Transformer
-	sender       interfaces.Sender
-	filter       []interfaces.Filterer
+	registration contract.Registration
+	format       formatter
+	compression  transformer
+	encrypt      transformer
+	sender       sender
+	filter       []filterer
 
-	chRegistration chan *export.Registration
+	chRegistration chan *contract.Registration
 	chEvent        chan *models.Event
 
 	deleteFlag bool
 }
 
-func RefreshRegistrations(update export.NotifyUpdate) {
+func RefreshRegistrations(update contract.NotifyUpdate) {
 	// TODO make it not blocking, return bool?
 	registrationChanges <- update
 }
@@ -49,67 +54,79 @@ func RefreshRegistrations(update export.NotifyUpdate) {
 func newRegistrationInfo() *registrationInfo {
 	reg := &registrationInfo{}
 
-	reg.chRegistration = make(chan *export.Registration)
+	reg.chRegistration = make(chan *contract.Registration)
 	reg.chEvent = make(chan *models.Event)
 	return reg
 }
 
-func (reg *registrationInfo) update(newReg export.Registration) bool {
+func (reg *registrationInfo) update(newReg contract.Registration) bool {
 	reg.registration = newReg
 
 	reg.format = nil
 	switch newReg.Format {
-	case export.FormatJSON:
+	case contract.FormatJSON:
 		reg.format = jsonFormatter{}
-	case export.FormatXML:
+	case contract.FormatXML:
 		reg.format = xmlFormatter{}
-	case export.FormatSerialized:
-		// TODO reg.format = distro.NewSerializedFormat()
-	case export.FormatIoTCoreJSON:
+	case contract.FormatSerialized:
 		reg.format = jsonFormatter{}
-	case export.FormatAzureJSON:
+	case contract.FormatIoTCoreJSON:
+		reg.format = jsonFormatter{}
+	case contract.FormatAzureJSON:
 		reg.format = azureFormatter{}
-	case export.FormatCSV:
+	case contract.FormatAWSJSON:
+		reg.format = awsFormatter{}
+	case contract.FormatCSV:
 		// TODO reg.format = distro.NewCsvFormat()
-	case export.FormatThingsBoardJSON:
+	case contract.FormatThingsBoardJSON:
 		reg.format = thingsboardJSONFormatter{}
-	case export.FormatNOOP:
+	case "DEXMA_JSON":
+		reg.format = dexmaJSONFormatter{}
+	case contract.FormatNOOP:
 		reg.format = noopFormatter{}
 	default:
-		logger.Warn("Format not supported: ", zap.String("format", newReg.Format))
+		LoggingClient.Warn(fmt.Sprintf("Format not supported: %s", newReg.Format))
 		return false
 	}
 
 	reg.compression = nil
 	switch newReg.Compression {
-	case export.CompNone:
+	case "":
+		fallthrough
+	case contract.CompNone:
 		reg.compression = nil
-	case export.CompGzip:
+	case contract.CompGzip:
 		reg.compression = &gzipTransformer{}
-	case export.CompZip:
+	case contract.CompZip:
 		reg.compression = &zlibTransformer{}
 	default:
-		logger.Warn("Compression not supported: ", zap.String("compression", newReg.Compression))
+		LoggingClient.Warn(fmt.Sprintf("Compression not supported: %s", newReg.Compression))
 		return false
 	}
 
 	reg.sender = nil
 	switch newReg.Destination {
-	case export.DestMQTT, export.DestAzureMQTT:
-		reg.sender = NewMqttSender(newReg.Addressable)
-	case export.DestZMQ:
-		logger.Info("Destination ZMQ is not supported")
-	case export.DestIotCoreMQTT:
-		reg.sender = NewIoTCoreSender(newReg.Addressable)
-	case export.DestRest:
-		reg.sender = NewHTTPSender(newReg.Addressable)
-	case export.DestXMPP:
-		reg.sender = NewXMPPSender(newReg.Addressable)
-	case export.DestInfluxDB:
-		reg.sender = NewInfluxDBSender(newReg.Addressable)
+	case contract.DestMQTT, contract.DestAzureMQTT:
+		c := Configuration.Certificates["MQTTS"]
+		reg.sender = newMqttSender(newReg.Addressable, c.Cert, c.Key)
+	case contract.DestAWSMQTT:
+		newReg.Addressable.Protocol = "tls"
+		newReg.Addressable.Path = ""
+		newReg.Addressable.Topic = fmt.Sprintf(awsThingUpdateTopic, newReg.Addressable.Topic)
+		newReg.Addressable.Port = awsMQTTPort
+		c := Configuration.Certificates["AWS"]
+		reg.sender = newMqttSender(newReg.Addressable, c.Cert, c.Key)
+	case contract.DestIotCoreMQTT:
+		reg.sender = newIoTCoreSender(newReg.Addressable)
+	case contract.DestRest:
+		reg.sender = newHTTPSender(newReg.Addressable)
+	case "DEXMA_TOPIC":
+		reg.sender = newHTTPDexmaSender(newReg.Addressable)
+	case contract.DestXMPP:
+		reg.sender = newXMPPSender(newReg.Addressable)
 
 	default:
-		logger.Warn("Destination not supported: ", zap.String("destination", newReg.Destination))
+		LoggingClient.Warn(fmt.Sprintf("Destination not supported: %s", newReg.Destination))
 		return false
 	}
 
@@ -119,25 +136,27 @@ func (reg *registrationInfo) update(newReg export.Registration) bool {
 
 	reg.encrypt = nil
 	switch newReg.Encryption.Algo {
-	case export.EncNone:
+	case "":
+		fallthrough
+	case contract.EncNone:
 		reg.encrypt = nil
-	case export.EncAes:
-		reg.encrypt = export.NewAESEncryption(newReg.Encryption)
+	case contract.EncAes:
+		reg.encrypt = newAESEncryption(newReg.Encryption)
 	default:
-		logger.Warn("Encryption not supported: ", zap.String("Algorithm", newReg.Encryption.Algo))
+		LoggingClient.Warn(fmt.Sprintf("Encryption not supported: %s", newReg.Encryption.Algo))
 		return false
 	}
 
 	reg.filter = nil
 
 	if len(newReg.Filter.DeviceIDs) > 0 {
-		reg.filter = append(reg.filter, NewDevIdFilter(newReg.Filter))
-		logger.Debug("Device ID filter added: ", zap.Any("filters", newReg.Filter.DeviceIDs))
+		reg.filter = append(reg.filter, newDevIdFilter(newReg.Filter))
+		LoggingClient.Debug(fmt.Sprintf("Device ID filter added: %s", newReg.Filter.DeviceIDs))
 	}
 
 	if len(newReg.Filter.ValueDescriptorIDs) > 0 {
-		reg.filter = append(reg.filter, NewValueDescFilter(newReg.Filter))
-		logger.Debug("Value descriptor filter added: ", zap.Any("filters", newReg.Filter.ValueDescriptorIDs))
+		reg.filter = append(reg.filter, newValueDescFilter(newReg.Filter))
+		LoggingClient.Debug(fmt.Sprintf("Value descriptor filter added: %s", newReg.Filter.ValueDescriptorIDs))
 	}
 
 	return true
@@ -146,24 +165,25 @@ func (reg *registrationInfo) update(newReg export.Registration) bool {
 func (reg registrationInfo) processEvent(event *models.Event) {
 	// Valid Event Filter, needed?
 
+	data := event.ToContract()
 	for _, f := range reg.filter {
 		var accepted bool
-		accepted, event = f.Filter(event)
+		accepted, data = f.Filter(data)
 		if !accepted {
-			logger.Info("Event filtered")
+			LoggingClient.Info("Event filtered")
 			return
 		}
 	}
 
 	if reg.format == nil {
-		logger.Warn("registrationInfo with nil format")
+		LoggingClient.Warn("registrationInfo with nil format")
 		return
 	}
-	formated := reg.format.Format(event)
+	formatted := reg.format.Format(data)
 
-	compressed := formated
+	compressed := formatted
 	if reg.compression != nil {
-		compressed = reg.compression.Transform(formated)
+		compressed = reg.compression.Transform(formatted)
 	}
 
 	encrypted := compressed
@@ -171,39 +191,36 @@ func (reg registrationInfo) processEvent(event *models.Event) {
 		encrypted = reg.encrypt.Transform(compressed)
 	}
 
-	if reg.sender.Send(encrypted, event) && configuration.MarkPushed {
-		id := event.ID.Hex()
-		err := ec.MarkPushed(id)
+	if reg.sender.Send(encrypted, event) && Configuration.Writable.MarkPushed {
+		id := event.ID
+		err := ec.MarkPushed(id, context.Background())
 
 		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to mark event as pushed : event ID = %s: %s", id, err))
+			LoggingClient.Error(fmt.Sprintf("Failed to mark event as pushed : event ID = %s: %s", id, err))
 		}
 	}
 
-	logger.Debug("Sent event with registration:",
-		zap.Any("Event", event),
-		zap.String("Name", reg.registration.Name))
+	LoggingClient.Debug(fmt.Sprintf("Sent event with registration: %s", reg.registration.Name))
 }
 
 func registrationLoop(reg *registrationInfo) {
-	logger.Info("registration loop started",
-		zap.String("Name", reg.registration.Name))
+	LoggingClient.Info(fmt.Sprintf("registration loop started: %s", reg.registration.Name))
 	for {
 		select {
 		case event := <-reg.chEvent:
-			reg.processEvent(event)
+			if reg.registration.Enable {
+				reg.processEvent(event)
+			}
 
 		case newReg := <-reg.chRegistration:
 			if newReg == nil {
-				logger.Info("Terminating registration goroutine")
+				LoggingClient.Info("Terminating registration goroutine")
 				return
 			} else {
 				if reg.update(*newReg) {
-					logger.Info("Registration updated: OK",
-						zap.String("Name", reg.registration.Name))
+					LoggingClient.Info(fmt.Sprintf("Registration %s updated: OK", reg.registration.Name))
 				} else {
-					logger.Info("Registration updated: KO, terminating goroutine",
-						zap.String("Name", reg.registration.Name))
+					LoggingClient.Info(fmt.Sprintf("Registration %s updated: OK, terminating goroutine", reg.registration.Name))
 					reg.deleteFlag = true
 					return
 				}
@@ -213,10 +230,10 @@ func registrationLoop(reg *registrationInfo) {
 }
 
 func updateRunningRegistrations(running map[string]*registrationInfo,
-	update export.NotifyUpdate) error {
+	update contract.NotifyUpdate) error {
 
 	switch update.Operation {
-	case export.NotifyUpdateDelete:
+	case contract.NotifyUpdateDelete:
 		for k, v := range running {
 			if k == update.Name {
 				v.chRegistration <- nil
@@ -225,7 +242,7 @@ func updateRunningRegistrations(running map[string]*registrationInfo,
 			}
 		}
 		return fmt.Errorf("delete update not processed")
-	case export.NotifyUpdateUpdate:
+	case contract.NotifyUpdateUpdate:
 		reg := getRegistrationByName(update.Name)
 		if reg == nil {
 			return fmt.Errorf("Could not find registration")
@@ -237,7 +254,7 @@ func updateRunningRegistrations(running map[string]*registrationInfo,
 			}
 		}
 		return fmt.Errorf("Could not find running registration")
-	case export.NotifyUpdateAdd:
+	case contract.NotifyUpdateAdd:
 		reg := getRegistrationByName(update.Name)
 		if reg == nil {
 			return fmt.Errorf("Could not find registration")
@@ -256,8 +273,8 @@ func updateRunningRegistrations(running map[string]*registrationInfo,
 // Loop - registration loop
 func Loop(errChan chan error, eventCh chan *models.Event) {
 	go func() {
-		p := fmt.Sprintf(":%d", configuration.Port)
-		logger.Info("Starting Export Distro", zap.String("url", p))
+		p := fmt.Sprintf(":%d", Configuration.Service.Port)
+		LoggingClient.Info(fmt.Sprintf("Starting Export Distro %s", p))
 		errChan <- http.ListenAndServe(p, httpServer())
 	}()
 
@@ -266,12 +283,12 @@ func Loop(errChan chan error, eventCh chan *models.Event) {
 	allRegs, err := getRegistrations()
 
 	for allRegs == nil {
-		logger.Info("Waiting for client microservice")
+		LoggingClient.Info("Waiting for client microservice")
 		select {
 		case e := <-errChan:
-			logger.Error("exit msg", zap.Error(e))
+			LoggingClient.Error(fmt.Sprintf("exit msg: %s", e.Error()))
 			if err != nil {
-				logger.Error("with error: ",  zap.Error(err))
+				LoggingClient.Error(fmt.Sprintf("with error: %s", err.Error()))
 			}
 			return
 		case <-time.After(time.Second):
@@ -288,7 +305,7 @@ func Loop(errChan chan error, eventCh chan *models.Event) {
 		}
 	}
 
-	logger.Info("Starting registration loop")
+	LoggingClient.Info("Starting registration loop")
 	for {
 		select {
 		case e := <-errChan:
@@ -300,19 +317,18 @@ func Loop(errChan chan error, eventCh chan *models.Event) {
 				}
 				delete(registrations, k)
 			}
-			logger.Info("exit msg", zap.Error(e))
+			LoggingClient.Error(fmt.Sprintf("exit msg: %s", e.Error()))
 			return
 
 		case update := <-registrationChanges:
-			logger.Info("Registration changes")
+			LoggingClient.Info("Registration changes")
 			err := updateRunningRegistrations(registrations, update)
 			if err != nil {
-				logger.Warn("Error updating registration", zap.Error(err),
-					zap.Any("update", update))
+				LoggingClient.Error(err.Error())
+				LoggingClient.Warn(fmt.Sprintf("Error updating registration %s", update.Name))
 			}
 
 		case event := <-eventCh:
-			logger.Info("EVENT")
 			for k, reg := range registrations {
 				if reg.deleteFlag {
 					delete(registrations, k)

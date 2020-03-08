@@ -13,21 +13,19 @@
  * the License.
  *
  *******************************************************************************/
+
 package coredata
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 const (
-	ReadingUriPath     = "/api/v1/reading"
 	TestReadingDevice1 = "device1"
 	TestReadingDevice2 = "device2"
 )
@@ -40,8 +38,8 @@ func TestGetReadings(t *testing.T) {
 			t.Errorf("expected http method is GET, active http method is : %s", r.Method)
 		}
 
-		if r.URL.EscapedPath() != ReadingUriPath {
-			t.Errorf("expected uri path is %s, actual uri path is %s", ReadingUriPath, r.URL.EscapedPath())
+		if r.URL.EscapedPath() != clients.ApiReadingRoute {
+			t.Errorf("expected uri path is %s, actual uri path is %s", clients.ApiReadingRoute, r.URL.EscapedPath())
 		}
 
 		w.Write([]byte("[" +
@@ -57,17 +55,10 @@ func TestGetReadings(t *testing.T) {
 
 	defer ts.Close()
 
-	url := ts.URL + ReadingUriPath
+	url := ts.URL + clients.ApiReadingRoute
+	rc := NewReadingClient(url)
 
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreDataServiceKey,
-		Path:        ReadingUriPath,
-		UseRegistry: false,
-		Url:         url}
-
-	rc := NewReadingClient(params, mockReadingEndpoint{})
-
-	rArr, err := rc.Readings()
+	rArr, err := rc.Readings(context.Background())
 	if err != nil {
 		t.FailNow()
 	}
@@ -84,42 +75,5 @@ func TestGetReadings(t *testing.T) {
 	r2 := rArr[1]
 	if r2.Device != TestReadingDevice2 {
 		t.Errorf("expected second reading's device is : %s, actual reading is : %s ", TestReadingDevice2, r2.Device)
-	}
-}
-
-func TestNewReadingClientWithConsul(t *testing.T) {
-	deviceUrl := "http://localhost:48080" + ReadingUriPath
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreDataServiceKey,
-		Path:        ReadingUriPath,
-		UseRegistry: true,
-		Url:         deviceUrl}
-
-	rc := NewReadingClient(params, mockReadingEndpoint{})
-
-	r, ok := rc.(*ReadingRestClient)
-	if !ok {
-		t.Error("rc is not of expected type")
-	}
-
-	time.Sleep(25 * time.Millisecond)
-	if len(r.url) == 0 {
-		t.Error("url was not initialized")
-	} else if r.url != deviceUrl {
-		t.Errorf("unexpected url value %s", r.url)
-	}
-}
-
-type mockReadingEndpoint struct {
-}
-
-func (r mockReadingEndpoint) Monitor(params types.EndpointParams, ch chan string) {
-	switch params.ServiceKey {
-	case internal.CoreDataServiceKey:
-		url := fmt.Sprintf("http://%s:%v%s", "localhost", 48080, params.Path)
-		ch <- url
-		break
-	default:
-		ch <- ""
 	}
 }

@@ -1,0 +1,25 @@
+[Writable]
+Persistence = 'file'
+LogLevel = 'INFO'
+
+[Service]
+BootTimeout = 30000
+Host = 'localhost'
+Port = 48061
+Protocol = 'http'
+ReadMaxLimit = 5000
+StartupMsg = 'This is the Support Logging Microservice'
+Timeout = 5000
+
+[Logging]
+File = './logs/edgex.log'
+
+[Databases]
+  [Databases.Primary]
+  Host = 'localhost'
+  Name = 'logging'
+  Password = ''
+  Port = 27017
+  Username = ''
+  Timeout = 5000
+  Type = 'mongodb'

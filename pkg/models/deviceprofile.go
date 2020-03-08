@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,7 +16,6 @@ package models
 
 import (
 	"encoding/json"
-	"gopkg.in/mgo.v2/bson"
 )
 
 /*
@@ -26,39 +25,38 @@ import (
  * Device profile struct
  */
 type DeviceProfile struct {
-	DescribedObject `bson:",inline" yaml:",inline"`
-	Id              bson.ObjectId     `bson:"_id,omitempty" json:"id"`
-	Name            string            `bson:"name" json:"name" yaml:"name"`                         // Non-database identifier (must be unique)
-	Manufacturer    string            `bson:"manufacturer" json:"manufacturer" yaml:"manufacturer"` // Manufacturer of the device
-	Model           string            `bson:"model" json:"model" yaml:"model"`                      // Model of the device
-	Labels          []string          `bson:"labels" json:"labels" yaml:"labels,flow"`              // Labels used to search for groups of profiles
-	Objects         interface{}       `bson:"objects" json:"objects" yaml:"objects"`                // JSON data that the device service uses to communicate with devices with this profile
-	DeviceResources []DeviceObject    `bson:"deviceResources" json:"deviceResources" yaml:"deviceResources"`
-	Resources       []ProfileResource `bson:"resources" json:"resources" yaml:"resources"`
-	Commands        []Command         `bson:"commands" json:"commands" yaml:"commands"` // List of commands to Get/Put information for devices associated with this profile
+	DescribedObject `yaml:",inline"`
+	Id              string            `json:"id" yaml:"id,omitempty"`
+	Name            string            `json:"name" yaml:"name,omitempty"`                 // Non-database identifier (must be unique)
+	Manufacturer    string            `json:"manufacturer" yaml:"manufacturer,omitempty"` // Manufacturer of the device
+	Model           string            `json:"model" yaml:"model,omitempty"`               // Model of the device
+	Labels          []string          `json:"labels" yaml:"labels,flow,omitempty"`        // Labels used to search for groups of profiles
+	DeviceResources []DeviceResource  `json:"deviceResources" yaml:"deviceResources,omitempty"`
+	Resources       []ProfileResource `json:"resources" yaml:"resources,omitempty"`
+	Commands        []Command         `json:"commands" yaml:"commands,omitempty"` // List of commands to Get/Put information for devices associated with this profile
 }
 
 // Custom marshaling so that empty strings and arrays are null
 func (dp DeviceProfile) MarshalJSON() ([]byte, error) {
 	test := struct {
 		DescribedObject
-		Id              bson.ObjectId     `json:"id"`
-		Name            *string           `json:"name"`         // Non-database identifier (must be unique)
-		Manufacturer    *string           `json:"manufacturer"` // Manufacturer of the device
-		Model           *string           `json:"model"`        // Model of the device
-		Labels          []string          `json:"labels"`       // Labels used to search for groups of profiles
-		Objects         interface{}       `json:"objects"`      // JSON data that the device service uses to communicate with devices with this profile
-		DeviceResources []DeviceObject    `json:"deviceResources"`
-		Resources       []ProfileResource `json:"resources"`
-		Commands        []Command         `json:"commands"` // List of commands to Get/Put information for devices associated with this profile
+		Id              *string           `json:"id,omitempty"`
+		Name            *string           `json:"name,omitempty"`         // Non-database identifier (must be unique)
+		Manufacturer    *string           `json:"manufacturer,omitempty"` // Manufacturer of the device
+		Model           *string           `json:"model,omitempty"`        // Model of the device
+		Labels          []string          `json:"labels,omitempty"`       // Labels used to search for groups of profiles
+		DeviceResources []DeviceResource  `json:"deviceResources,omitempty"`
+		Resources       []ProfileResource `json:"resources,omitempty"`
+		Commands        []Command         `json:"commands,omitempty"` // List of commands to Get/Put information for devices associated with this profile
 	}{
-		Id:              dp.Id,
 		Labels:          dp.Labels,
 		DescribedObject: dp.DescribedObject,
-		Objects:         dp.Objects,
 	}
 
 	// Empty strings are null
+	if dp.Id != "" {
+		test.Id = &dp.Id
+	}
 	if dp.Name != "" {
 		test.Name = &dp.Name
 	}

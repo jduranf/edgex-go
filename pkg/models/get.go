@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,14 +17,14 @@ package models
 import "encoding/json"
 
 type Get struct {
-	Action `bson:",inline" yaml:",inline"`
+	Action `yaml:",inline"`
 }
 
 // Custom marshaling to make empty strings and arrays null
 func (g Get) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Path      *string    `json:"path"`
-		Responses []Response `json:"responses"`
+		Path      *string    `json:"path,omitempty"`
+		Responses []Response `json:"responses,omitempty"`
 		URL       string     `json:"url,omitempty"`
 	}{URL: g.Action.URL}
 

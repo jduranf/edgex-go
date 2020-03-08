@@ -9,16 +9,17 @@
 package client
 
 import (
-	"bytes"
+	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 
-	"github.com/edgexfoundry/edgex-go/internal/export"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/go-zoo/bone"
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -35,11 +36,13 @@ const (
 )
 
 func getRegByID(w http.ResponseWriter, r *http.Request) {
-	id := bone.GetValue(r, "id")
+	// URL parameters
+	vars := mux.Vars(r)
+	id := vars["id"]
 
-	reg, err := dbc.RegistrationById(id)
+	reg, err := dbClient.RegistrationById(id)
 	if err != nil {
-		logger.Error("Failed to query by id", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query by id: %s. Error: %s", id, err.Error()))
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -49,26 +52,37 @@ func getRegByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRegList(w http.ResponseWriter, r *http.Request) {
-	t := bone.GetValue(r, "type")
+	// URL parameters
+	vars := mux.Vars(r)
+	t := vars["type"]
 
 	var list []string
 
 	switch t {
 	case typeAlgorithms:
-		list = append(list, export.EncNone)
-		list = append(list, export.EncAes)
+		list = append(list, models.EncNone)
+		list = append(list, models.EncAes)
 	case typeCompressions:
-		list = append(list, export.CompNone)
-		list = append(list, export.CompGzip)
-		list = append(list, export.CompZip)
+		list = append(list, models.CompNone)
+		list = append(list, models.CompGzip)
+		list = append(list, models.CompZip)
 	case typeFormats:
-		list = append(list, export.FormatJSON)
-		list = append(list, export.FormatXML)
+		list = append(list, models.FormatJSON)
+		list = append(list, models.FormatXML)
+		list = append(list, models.FormatIoTCoreJSON)
+		list = append(list, models.FormatAzureJSON)
+		list = append(list, models.FormatAWSJSON)
+		list = append(list, models.FormatThingsBoardJSON)
+		list = append(list, models.FormatNOOP)
 	case typeDestinations:
-		list = append(list, export.DestMQTT)
-		list = append(list, export.DestRest)
+		list = append(list, models.DestMQTT)
+		list = append(list, models.DestIotCoreMQTT)
+		list = append(list, models.DestAzureMQTT)
+		list = append(list, models.DestRest)
+		list = append(list, models.DestXMPP)
+		list = append(list, models.DestAWSMQTT)
 	default:
-		logger.Error("Unknown type: " + t)
+		LoggingClient.Error("Unknown type: " + t)
 		http.Error(w, "Unknown type: "+t, http.StatusBadRequest)
 		return
 	}
@@ -78,9 +92,9 @@ func getRegList(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllReg(w http.ResponseWriter, r *http.Request) {
-	reg, err := dbc.Registrations()
+	reg, err := dbClient.Registrations()
 	if err != nil {
-		logger.Error("Failed to query all registrations", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query all registrations. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -90,11 +104,13 @@ func getAllReg(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRegByName(w http.ResponseWriter, r *http.Request) {
-	name := bone.GetValue(r, "name")
+	// URL parameters
+	vars := mux.Vars(r)
+	name := vars["name"]
 
-	reg, err := dbc.RegistrationByName(name)
+	reg, err := dbClient.RegistrationByName(name)
 	if err != nil {
-		logger.Error("Failed to query by name", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query by name. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -106,77 +122,156 @@ func getRegByName(w http.ResponseWriter, r *http.Request) {
 func addReg(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logger.Error("Failed to query add registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query add registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	reg := export.Registration{}
+	reg := models.Registration{}
 	if err := json.Unmarshal(data, &reg); err != nil {
-		logger.Error("Failed to query add registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query add registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if valid, err := reg.Validate(); !valid {
-		logger.Error("Failed to validate registrations fields", zap.ByteString("data", data), zap.Error(err))
+	if reg.Format == "DEXMA_JSON" && reg.Destination == "DEXMA_TOPIC" {
+		if reg.Name == "" {
+			LoggingClient.Error(fmt.Sprintf("Failed to validate registrations fields: %X. Error: Name is required", data))
+			http.Error(w, "Could not validate json fields", http.StatusBadRequest)
+			return
+		}
+	} else if valid, err := reg.Validate(); !valid {
+		LoggingClient.Error(fmt.Sprintf("Failed to validate registrations fields: %X. Error: %s", data, err.Error()))
 		http.Error(w, "Could not validate json fields", http.StatusBadRequest)
 		return
 	}
 
-	_, err = dbc.RegistrationByName(reg.Name)
+	_, err = dbClient.RegistrationByName(reg.Name)
 	if err == nil {
-		logger.Error("Name already taken: " + reg.Name)
+		LoggingClient.Error("Name already taken: " + reg.Name)
 		http.Error(w, "Name already taken", http.StatusBadRequest)
 		return
 	} else if err != db.ErrNotFound {
-		logger.Error("Failed to query add registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query add registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	_, err = dbc.AddRegistration(&reg)
+	if reg.Name == "Amazon Web Services (AWS)" || reg.Name == "Google Cloud IoT Core" {
+		var keyDirAmd64 string
+		//var keyDirArm string
+		var certDirAmd64 string
+		//var certDirArm string
+		var keyRegister string
+		var certRegister string
+
+		if reg.Name == "Amazon Web Services (AWS)" {
+			keyDirAmd64 = "./keys/aws_private.pem"
+			//keyDirArm = "/etc/edgex/aws_private.pem"
+			certDirAmd64 = "./keys/aws_cert.pem"
+			//certDirArm = "/etc/edgex/aws_cert.pem"
+		} else if reg.Name == "Google Cloud IoT Core" {
+			keyDirAmd64 = "./keys/giot_private.pem"
+			//keyDirArm = "/etc/edgex/giot_private.pem"
+			certDirAmd64 = "./keys/giot_cert.pem"
+			//certDirArm = "/etc/edgex/giot_cert.pem"
+		}
+		keyRegister = reg.Addressable.Path
+		certRegister = reg.Addressable.Protocol
+
+		LoggingClient.Debug("Check Private Key")
+		blockkey, _ := pem.Decode([]byte(keyRegister))
+		if blockkey == nil {
+			LoggingClient.Error("Error decoding Private Key")
+			http.Error(w, "Error decoding Private Key", http.StatusInternalServerError)
+			return
+		}
+		_, err = x509.ParsePKCS8PrivateKey(blockkey.Bytes)
+		if err != nil {
+			_, err = x509.ParsePKCS1PrivateKey(blockkey.Bytes)
+			if err != nil {
+				LoggingClient.Error(fmt.Sprintf("Error validating Private Key. Error: %s", err.Error()))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		err = ioutil.WriteFile(keyDirAmd64, ([]byte(keyRegister)), 0644)
+		if err != nil {
+			LoggingClient.Error(fmt.Sprintf("Error Writting Private Key. Error: %s", err.Error()))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		LoggingClient.Debug("Check Certificate")
+		block, _ := pem.Decode([]byte(certRegister))
+		if block == nil {
+			LoggingClient.Error("Error decoding Certificate")
+			http.Error(w, "Error decoding Certificate", http.StatusInternalServerError)
+			return
+		}
+		_, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			LoggingClient.Error("Error validating Certificate")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = ioutil.WriteFile(certDirAmd64, ([]byte(certRegister)), 0644)
+		if err != nil {
+			LoggingClient.Error(fmt.Sprintf("Error Writting Certificate. Error: %s", err.Error()))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		reg.Addressable.Path = ""
+		if reg.Name == "Amazon Web Services (AWS)" {
+			reg.Addressable.Protocol = ""
+		} else if reg.Name == "Google Cloud IoT Core" {
+			reg.Addressable.Protocol = "tls"
+		}
+	}
+
+	id, err := dbClient.AddRegistration(reg)
 	if err != nil {
-		logger.Error("Failed to query add registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query add registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	notifyUpdatedRegistrations(export.NotifyUpdate{Name: reg.Name,
+	notifyUpdatedRegistrations(models.NotifyUpdate{Name: reg.Name,
 		Operation: "add"})
-
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(reg.ID.Hex()))
+	w.Write([]byte(id))
 }
 
 func updateReg(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logger.Error("Failed to read update registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to read update registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var fromReg export.Registration
+	var fromReg models.Registration
 	if err := json.Unmarshal(data, &fromReg); err != nil {
-		logger.Error("Failed to unmarshal update registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to unmarshal update registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Check if the registration exists
-	var toReg export.Registration
+	var toReg models.Registration
 	if fromReg.ID != "" {
-		toReg, err = dbc.RegistrationById(fromReg.ID.Hex())
+		toReg, err = dbClient.RegistrationById(fromReg.ID)
 	} else if fromReg.Name != "" {
-		toReg, err = dbc.RegistrationByName(fromReg.Name)
+		toReg, err = dbClient.RegistrationByName(fromReg.Name)
 	} else {
 		http.Error(w, "Need id or name", http.StatusBadRequest)
 		return
 	}
 
 	if err != nil {
-		logger.Error("Failed to query update registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query update registration. Error: %s", err.Error()))
 		if err == db.ErrNotFound {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
@@ -218,20 +313,26 @@ func updateReg(w http.ResponseWriter, r *http.Request) {
 		toReg.Enable = fromReg.Enable
 	}
 
-	if valid, err := toReg.Validate(); !valid {
-		logger.Error("Failed to validate registrations fields", zap.ByteString("data", data), zap.Error(err))
+	if toReg.Format == "DEXMA_JSON" && toReg.Destination == "DEXMA_TOPIC" {
+		if toReg.Name == "" {
+			LoggingClient.Error(fmt.Sprintf("Failed to validate registrations fields: %X. Error: Name is required", data))
+			http.Error(w, "Could not validate json fields", http.StatusBadRequest)
+			return
+		}
+	} else if valid, err := toReg.Validate(); !valid {
+		LoggingClient.Error(fmt.Sprintf("Failed to validate registrations fields: %X. Error: %s", data, err.Error()))
 		http.Error(w, "Could not validate json fields", http.StatusBadRequest)
 		return
 	}
 
-	err = dbc.UpdateRegistration(toReg)
+	err = dbClient.UpdateRegistration(toReg)
 	if err != nil {
-		logger.Error("Failed to query update registration", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query update registration. Error: %s", err.Error()))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	notifyUpdatedRegistrations(export.NotifyUpdate{Name: toReg.Name,
+	notifyUpdatedRegistrations(models.NotifyUpdate{Name: toReg.Name,
 		Operation: "update"})
 
 	w.Header().Set("Content-Type", applicationJson)
@@ -240,25 +341,28 @@ func updateReg(w http.ResponseWriter, r *http.Request) {
 }
 
 func delRegByID(w http.ResponseWriter, r *http.Request) {
-	id := bone.GetValue(r, "id")
+
+	// URL parameters
+	vars := mux.Vars(r)
+	id := vars["id"]
 
 	// Read the registration, the registration name is needed to
 	// notify distro of the deletion
-	reg, err := dbc.RegistrationById(id)
+	reg, err := dbClient.RegistrationById(id)
 	if err != nil {
-		logger.Error("Failed to query by id", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query by id: %s. Error: %s", id, err.Error()))
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	err = dbc.DeleteRegistrationById(id)
+	err = dbClient.DeleteRegistrationById(id)
 	if err != nil {
-		logger.Error("Failed to query by id", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query by id: %s. Error: %s", id, err.Error()))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	notifyUpdatedRegistrations(export.NotifyUpdate{Name: reg.Name,
+	notifyUpdatedRegistrations(models.NotifyUpdate{Name: reg.Name,
 		Operation: "delete"})
 
 	w.Header().Set("Content-Type", applicationJson)
@@ -267,16 +371,18 @@ func delRegByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func delRegByName(w http.ResponseWriter, r *http.Request) {
-	name := bone.GetValue(r, "name")
+	// URL parameters
+	vars := mux.Vars(r)
+	name := vars["name"]
 
-	err := dbc.DeleteRegistrationByName(name)
+	err := dbClient.DeleteRegistrationByName(name)
 	if err != nil {
-		logger.Error("Failed to query by name", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed to query by name: %s. Error: %s", name, err.Error()))
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	notifyUpdatedRegistrations(export.NotifyUpdate{Name: name,
+	notifyUpdatedRegistrations(models.NotifyUpdate{Name: name,
 		Operation: "delete"})
 
 	w.Header().Set("Content-Type", applicationJson)
@@ -284,26 +390,11 @@ func delRegByName(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("true"))
 }
 
-func notifyUpdatedRegistrations(update export.NotifyUpdate) {
+func notifyUpdatedRegistrations(update models.NotifyUpdate) {
 	go func() {
-		client := &http.Client{}
-		url := "http://" + configuration.DistroHost + ":" + strconv.Itoa(configuration.DistroPort) +
-			"/api/v1/notify/registrations"
-
-		data, err := json.Marshal(update)
+		err := dc.NotifyRegistrations(update, context.Background())
 		if err != nil {
-			logger.Error("Error generating update json", zap.Error(err))
-			return
-		}
-
-		req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer([]byte(data)))
-		if err != nil {
-			logger.Error("Error creating http request")
-			return
-		}
-		_, err = client.Do(req)
-		if err != nil {
-			logger.Error("Error notifying updated registrations to distro", zap.String("url", url))
+			LoggingClient.Error(fmt.Sprintf("error from distro: %s", err.Error()))
 		}
 	}()
 }

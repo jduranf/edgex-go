@@ -9,18 +9,15 @@ package logging
 import (
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/support/logging/models"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 func TestCriteriaMatch(t *testing.T) {
 	var services = []string{"service1", "service2"}
-	var levels = []string{models.TRACE, models.DEBUG}
+	var levels = []string{logger.TraceLog, logger.DebugLog}
 	var keywords = []string{"2"}
 	var keywordsEmptyString = []string{""}
-	var labels1 = []string{"label1"}
-	var labels2 = []string{"label2"}
-	var labels12 = []string{"label2", "label1"}
-	var labels3 = []string{"1", "2", "label2"}
 
 	var tests = []struct {
 		name     string
@@ -34,8 +31,8 @@ func TestCriteriaMatch(t *testing.T) {
 		{"wrongService", models.LogEntry{OriginService: "service11"}, matchCriteria{OriginServices: services}, false},
 		{"matchService", models.LogEntry{OriginService: "service1"}, matchCriteria{OriginServices: services}, true},
 		// Levels
-		{"wrongLevel", models.LogEntry{Level: models.WARN}, matchCriteria{LogLevels: levels}, false},
-		{"matchLevel", models.LogEntry{Level: models.DEBUG}, matchCriteria{LogLevels: levels}, true},
+		{"wrongLevel", models.LogEntry{Level: logger.WarnLog}, matchCriteria{LogLevels: levels}, false},
+		{"matchLevel", models.LogEntry{Level: logger.DebugLog}, matchCriteria{LogLevels: levels}, true},
 		// Start
 		{"0Start", models.LogEntry{Created: 5}, matchCriteria{Start: 0}, true},
 		{"wrongStart", models.LogEntry{Created: 5}, matchCriteria{Start: 6}, false},
@@ -52,12 +49,6 @@ func TestCriteriaMatch(t *testing.T) {
 		{"matchKeywords", models.LogEntry{Message: "222222"}, matchCriteria{Keywords: keywords}, true},
 		{"KeywordsEmptyString", models.LogEntry{Message: "222222"}, matchCriteria{Keywords: keywordsEmptyString}, true},
 		{"KeywordsEmptyString2", models.LogEntry{Message: ""}, matchCriteria{Keywords: keywordsEmptyString}, true},
-		// labels
-		{"noLabels", models.LogEntry{Labels: labels1}, matchCriteria{}, true},
-		{"matchLabels", models.LogEntry{Labels: labels1}, matchCriteria{Labels: labels1}, true},
-		{"matchLabels2", models.LogEntry{Labels: labels1}, matchCriteria{Labels: labels12}, true},
-		{"wrongLabels", models.LogEntry{Labels: labels1}, matchCriteria{Labels: labels2}, false},
-		{"wrongLabels", models.LogEntry{Labels: labels1}, matchCriteria{Labels: labels3}, false},
 	}
 	le := models.LogEntry{}
 

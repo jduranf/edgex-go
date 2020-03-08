@@ -1,5 +1,6 @@
 /*******************************************************************************
  * Copyright 2017 Dell Inc.
+ * Copyright (c) 2019 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,18 +16,18 @@ package metadata
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/edgexfoundry/edgex-go/internal"
 	"github.com/edgexfoundry/edgex-go/internal/core/metadata/interfaces"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/consul"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/memory"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/db/bolt"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db/mongo"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logging"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
 	"github.com/edgexfoundry/edgex-go/pkg/clients/notifications"
 )
 
@@ -34,32 +35,33 @@ import (
 var Configuration *ConfigurationStruct
 var dbClient interfaces.DBClient
 var LoggingClient logger.LoggingClient
+var nc notifications.NotificationsClient
 
-func Retry(useConsul bool, useProfile string, timeout int, wait *sync.WaitGroup, ch chan error) {
+func Retry(useProfile string, timeout int, wait *sync.WaitGroup, ch chan error) {
 	until := time.Now().Add(time.Millisecond * time.Duration(timeout))
 	for time.Now().Before(until) {
 		var err error
-		//When looping, only handle configuration if it hasn't already been set.
+		// When looping, only handle configuration if it hasn't already been set.
 		if Configuration == nil {
-			Configuration, err = initializeConfiguration(useConsul, useProfile)
+			Configuration, err = initializeConfiguration(useProfile)
 			if err != nil {
 				ch <- err
-				if !useConsul {
-					//Error occurred when attempting to read from local filesystem. Fail fast.
-					close(ch)
-					wait.Done()
-					return
-				}
+
+				//Error occurred when attempting to read from local filesystem. Fail fast.
+				close(ch)
+				wait.Done()
+				return
 			} else {
-				// Initialize notificationsClient based on configuration
-				notifications.SetConfiguration(Configuration.SupportNotificationsHost, Configuration.SupportNotificationsPort)
 				// Setup Logging
 				logTarget := setLoggingTarget()
-				LoggingClient = logger.NewClient(internal.CoreMetaDataServiceKey, Configuration.EnableRemoteLogging, logTarget)
+				LoggingClient = logger.NewClient(internal.CoreMetaDataServiceKey, Configuration.Logging.EnableRemote, logTarget, Configuration.Writable.LogLevel)
+
+				// Initialize notificationsClient based on configuration
+				initializeClients()
 			}
 		}
 
-		//Only attempt to connect to database if configuration has been populated
+		// Only attempt to connect to database if configuration has been populated
 		if Configuration != nil {
 			err := connectToDatabase()
 			if err != nil {
@@ -80,6 +82,9 @@ func Init() bool {
 	if Configuration == nil || dbClient == nil {
 		return false
 	}
+
+	go telemetry.StartCpuUsageAverage()
+
 	return true
 }
 
@@ -90,86 +95,56 @@ func Destruct() {
 	}
 }
 
-func initializeConfiguration(useConsul bool, useProfile string) (*ConfigurationStruct, error) {
-	//We currently have to load configuration from filesystem first in order to obtain ConsulHost/Port
-	conf := &ConfigurationStruct{}
-	err := config.LoadFromFile(useProfile, conf)
+func initializeConfiguration(useProfile string) (*ConfigurationStruct, error) {
+	configuration := &ConfigurationStruct{}
+	err := config.LoadFromFile(useProfile, configuration)
 	if err != nil {
 		return nil, err
 	}
-
-	if useConsul {
-		err := connectToConsul(conf)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return conf, nil
-}
-
-func connectToConsul(conf *ConfigurationStruct) error {
-	// Initialize service on Consul
-	err := consulclient.ConsulInit(consulclient.ConsulConfig{
-		ServiceName:    internal.CoreMetaDataServiceKey,
-		ServicePort:    conf.ServicePort,
-		ServiceAddress: conf.ServiceAddress,
-		CheckAddress:   conf.ConsulCheckAddress,
-		CheckInterval:  conf.CheckInterval,
-		ConsulAddress:  conf.ConsulHost,
-		ConsulPort:     conf.ConsulPort,
-	})
-	if err != nil {
-		return fmt.Errorf("connection to Consul could not be made: %v", err.Error())
-	} else {
-		// Update configuration data from Consul
-		if err := consulclient.CheckKeyValuePairs(conf, internal.CoreMetaDataServiceKey, strings.Split(conf.ConsulProfilesActive, ";")); err != nil {
-			return fmt.Errorf("error getting key/values from Consul: %v", err.Error())
-		}
-	}
-	return nil
+	return configuration, nil
 }
 
 func connectToDatabase() error {
-	dbConfig := db.Configuration{
-		Host:         Configuration.MongoDBHost,
-		Port:         Configuration.MongoDBPort,
-		Timeout:      Configuration.MongoDBConnectTimeout,
-		DatabaseName: Configuration.MongoDatabaseName,
-		Username:     Configuration.MongoDBUserName,
-		Password:     Configuration.MongoDBPassword,
-	}
 	var err error
-	dbClient, err = newDBClient(Configuration.DBType, dbConfig)
+	dbConfig := db.Configuration{
+		Host:         Configuration.Databases["Primary"].Host,
+		Port:         Configuration.Databases["Primary"].Port,
+		Timeout:      Configuration.Databases["Primary"].Timeout,
+		DatabaseName: Configuration.Databases["Primary"].Name,
+		Username:     Configuration.Databases["Primary"].Username,
+		Password:     Configuration.Databases["Primary"].Password,
+	}
+
+	dbClient, err = newDBClient(Configuration.Databases["Primary"].Type, dbConfig)
 	if err != nil {
 		dbClient = nil
 		return fmt.Errorf("couldn't create database client: %v", err.Error())
 	}
 
-	// Connect to the database
-	err = dbClient.Connect()
-	if err != nil {
-		dbClient = nil
-		return fmt.Errorf("couldn't connect to database: %v", err.Error())
-	}
-	return nil
+	return err
 }
 
 // Return the dbClient interface
 func newDBClient(dbType string, config db.Configuration) (interfaces.DBClient, error) {
 	switch dbType {
 	case db.MongoDB:
-		return mongo.NewClient(config), nil
-	case db.MemoryDB:
-		return &memory.MemDB{}, nil
+		return mongo.NewClient(config)
+	case db.BoltDB:
+		return bolt.NewClient(config)
 	default:
 		return nil, db.ErrUnsupportedDatabase
 	}
 }
 
+func initializeClients() {
+	// Create notification client
+	url := Configuration.Clients["Notifications"].Url() + clients.ApiNotificationRoute
+	nc = notifications.NewNotificationsClient(url)
+}
+
 func setLoggingTarget() string {
-	logTarget := Configuration.LoggingRemoteURL
-	if !Configuration.EnableRemoteLogging {
-		return Configuration.LoggingFile
+	if Configuration.Logging.EnableRemote {
+		return Configuration.Clients["Logging"].Url() + clients.ApiLoggingRoute
 	}
-	return logTarget
+	return Configuration.Logging.File
 }

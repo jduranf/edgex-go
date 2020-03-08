@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Technologies Inc.
+ * Copyright 2019 Dell Technologies Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -20,9 +20,9 @@ import (
 )
 
 type TransmissionRecord struct {
-	Status   TransmissionStatus `bson:"status" json:"status"`
-	Response string             `bson:"response" json:"response"`
-	Sent     int64              `bson:"sent" json:"sent"`
+	Status   TransmissionStatus `json:"status"`
+	Response string             `json:"response"`
+	Sent     int64              `json:"sent"`
 }
 
 // Custom marshaling to make empty strings null

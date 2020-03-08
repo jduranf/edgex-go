@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,6 +18,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 const testAddrName = "TEST_ADDR.NAME"
@@ -25,13 +27,12 @@ const testProtocol = "HTTP"
 const testMethod = "Get"
 const testAddress = "localhost"
 const testPort = 48089
-const testAddressablePath = "/api/v1/device"
 const testPublisher = "TEST_PUB"
 const testUser = "edgexer"
 const testPassword = "password"
 const testTopic = "device_topic"
 
-var TestAddressable = Addressable{BaseObject: TestBaseObject, Name: testAddrName, Protocol: testProtocol, HTTPMethod: testMethod, Address: testAddress, Port: testPort, Path: testAddressablePath, Publisher: testPublisher, User: testUser, Password: testPassword, Topic: testTopic}
+var TestAddressable = Addressable{BaseObject: TestBaseObject, Name: testAddrName, Protocol: testProtocol, HTTPMethod: testMethod, Address: testAddress, Port: testPort, Path: clients.ApiDeviceRoute, Publisher: testPublisher, User: testUser, Password: testPassword, Topic: testTopic}
 var EmptyAddressable = Addressable{}
 
 func TestAddressable_MarshalJSON(t *testing.T) {
@@ -69,7 +70,7 @@ func TestAddressable_String(t *testing.T) {
 		{"full addressable", TestAddressable, "{\"created\":" + strconv.FormatInt(TestAddressable.Created, 10) +
 			",\"modified\":" + strconv.FormatInt(TestAddressable.Modified, 10) +
 			",\"origin\":" + strconv.FormatInt(TestAddressable.Origin, 10) +
-			",\"id\":null,\"name\":\"" + TestAddressable.Name +
+			",\"name\":\"" + TestAddressable.Name +
 			"\",\"protocol\":\"" + TestAddressable.Protocol +
 			"\",\"method\":\"" + TestAddressable.HTTPMethod +
 			"\",\"address\":\"" + TestAddressable.Address +
@@ -81,7 +82,7 @@ func TestAddressable_String(t *testing.T) {
 			"\",\"topic\":\"" + TestAddressable.Topic +
 			"\",\"baseURL\":\"" + TestAddressable.Protocol + "://" + TestAddressable.Address + ":" + strconv.Itoa(TestAddressable.Port) +
 			"\",\"url\":\"" + TestAddressable.Protocol + "://" + TestAddressable.Address + ":" + strconv.Itoa(TestAddressable.Port) + TestAddressable.Path + "\"}"},
-		{"empty", EmptyAddressable, "{\"created\":0,\"modified\":0,\"origin\":0,\"id\":null,\"name\":null,\"protocol\":null,\"method\":null,\"address\":null,\"port\":0,\"path\":null,\"publisher\":null,\"user\":null,\"password\":null,\"topic\":null,\"baseURL\":null,\"url\":null}"},
+		{"empty", EmptyAddressable, "{}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,5 +90,19 @@ func TestAddressable_String(t *testing.T) {
 				t.Errorf("Addressable.String() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAddressableWithCallback(t *testing.T) {
+	url := TestAddressable.GetCallbackURL()
+	if len(url) == 0 {
+		t.Errorf("url was expected")
+	}
+}
+
+func TestAddressableNoCallback(t *testing.T) {
+	url := EmptyAddressable.GetCallbackURL()
+	if len(url) > 0 {
+		t.Errorf("url was not expected")
 	}
 }

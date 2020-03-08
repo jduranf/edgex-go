@@ -1,0 +1,59 @@
+[Writable]
+ScheduleIntervalTime = 500
+LogLevel = 'INFO'
+
+[Service]
+BootTimeout = 30000
+Host = 'localhost'
+Port = 48085
+Protocol = 'http'
+ReadMaxLimit = 1000
+StartupMsg = 'This is the Support Scheduler Microservice'
+Timeout = 5000
+
+[Logging]
+EnableRemote = true
+File = './logs/edgex-support-scheduler.log'
+
+[Clients]
+  [Clients.Logging]
+  Protocol = 'http'
+  Host = 'localhost'
+  Port = 48061
+
+[Databases]
+  [Databases.Primary]
+  Host = 'localhost'
+  Name = 'scheduler.db'
+  Password = ''
+  Port = 27017
+  Username = ''
+  Timeout = 5000
+  Type = 'boltdb'
+
+[Intervals]
+    [Intervals.Midnight]
+    Name = 'midnight'
+    Start = '20180101T000000'
+    Frequency = 'P1D'
+
+[IntervalActions]
+    [IntervalActions.ScrubPushed]
+    Name = 'scrub-pushed-events'
+    Host = 'localhost'
+    Port = 48080
+    Protocol = 'http'
+    Method = 'DELETE'
+    Target = 'core-data'
+    Path = '/api/v1/event/scrub'
+    Interval = 'midnight'
+
+    [IntervalActions.ScrubAged]
+    Name = 'scrub-aged-events'
+    Host = 'localhost'
+    Port = 48080
+    Protocol = 'http'
+    Method = 'DELETE'
+    Target = 'core-data'
+    Path = '/api/v1/event/removeold/age/604800000'
+    Interval = 'midnight'

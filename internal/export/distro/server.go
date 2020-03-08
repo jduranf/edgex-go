@@ -8,54 +8,54 @@ package distro
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/edgexfoundry/edgex-go/internal/export"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/gorilla/mux"
 
-	"github.com/go-zoo/bone"
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
-const (
-	apiV1NotifyRegistrations = "/api/v1/notify/registrations"
-	apiV1Ping                = "/api/v1/ping"
-)
+// Test if the service is working
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("pong"))
+}
 
-func replyPing(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	str := `pong`
-	io.WriteString(w, str)
+func configHandler(w http.ResponseWriter, _ *http.Request) {
+	encode(Configuration, w)
 }
 
 func replyNotifyRegistrations(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logger.Error("Failed read body", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Failed read body. Error: %s", err.Error()))
 		w.WriteHeader(http.StatusBadRequest)
 		io.WriteString(w, err.Error())
 		return
 	}
 
-	update := export.NotifyUpdate{}
+	update := models.NotifyUpdate{}
 	if err := json.Unmarshal(data, &update); err != nil {
-		logger.Error("Failed to parse", zap.ByteString("json", data))
+		LoggingClient.Error(fmt.Sprintf("Failed to parse %X", data))
 		w.WriteHeader(http.StatusBadRequest)
 		io.WriteString(w, err.Error())
 		return
 	}
 	if update.Name == "" || update.Operation == "" {
-		logger.Error("Missing json field", zap.Any("update", update))
+		LoggingClient.Error(fmt.Sprintf("Missing json field: %s", update.Name))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if update.Operation != export.NotifyUpdateAdd &&
-		update.Operation != export.NotifyUpdateUpdate &&
-		update.Operation != export.NotifyUpdateDelete {
-		logger.Error("Invalid value for operation",
-			zap.String("operation", update.Operation))
+	if update.Operation != models.NotifyUpdateAdd &&
+		update.Operation != models.NotifyUpdateUpdate &&
+		update.Operation != models.NotifyUpdateDelete {
+		LoggingClient.Error(fmt.Sprintf("Invalid value for operation %s", update.Operation))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -64,11 +64,46 @@ func replyNotifyRegistrations(w http.ResponseWriter, r *http.Request) {
 	RefreshRegistrations(update)
 }
 
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	s := telemetry.NewSystemUsage()
+
+	encode(s, w)
+
+	return
+}
+
+// Helper function for encoding things for returning from REST calls
+func encode(i interface{}, w http.ResponseWriter) {
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	err := enc.Encode(i)
+	// Problems encoding
+	if err != nil {
+		LoggingClient.Error("Error encoding the data: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 // HTTPServer function
 func httpServer() http.Handler {
-	mux := bone.New()
-	mux.Get(apiV1Ping, http.HandlerFunc(replyPing))
-	mux.Put(apiV1NotifyRegistrations, http.HandlerFunc(replyNotifyRegistrations))
+	r := mux.NewRouter()
 
-	return mux
+	// Ping Resource
+	r.HandleFunc(clients.ApiPingRoute, pingHandler).Methods(http.MethodGet)
+
+	// Configuration
+	r.HandleFunc(clients.ApiConfigRoute, configHandler).Methods(http.MethodGet)
+
+	// Metrics
+	r.HandleFunc(clients.ApiMetricsRoute, metricsHandler).Methods(http.MethodGet)
+
+	r.HandleFunc(clients.ApiNotifyRegistrationRoute, replyNotifyRegistrations).Methods(http.MethodPut)
+
+	r.Use(correlation.ManageHeader)
+	r.Use(correlation.OnResponseComplete)
+	r.Use(correlation.OnRequestBegin)
+
+	return r
 }

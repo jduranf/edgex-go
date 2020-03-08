@@ -3,11 +3,12 @@ vendor
 *.exe
 glide.lock
 *.DS_Store
-docker/docker-compose.yml
 .project
+.vscode/
+go.sum
+*.db
 
 # binary files
-cmd/config-seed/config-seed
 cmd/core-command/core-command
 cmd/core-data/core-data
 cmd/core-metadata/core-metadata
@@ -16,14 +17,11 @@ cmd/export-distro/export-distro
 cmd/support-logging/support-logging
 cmd/support-notifications/support-notifications
 cmd/sys-mgmt-agent/sys-mgmt-agent
+cmd/support-scheduler/support-scheduler
+cmd/edgex/edgex
+docs/_build/
 
 # log dirs
-logs/
-cmd/config-seed/logs/
-cmd/core-command/logs/
-cmd/core-data/logs/
-cmd/core-metadata/logs/
-cmd/support-logging/logs/
-cmd/export-client/logs/
-cmd/export-distro/logs/
-cmd/support-notifications/logs/
+**/logs
+
+go.sum

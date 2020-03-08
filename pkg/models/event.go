@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,7 +17,7 @@ package models
 import (
 	"encoding/json"
 
-	"gopkg.in/mgo.v2/bson"
+	"github.com/ugorji/go/codec"
 )
 
 /*
@@ -27,30 +27,39 @@ import (
  * Event struct to hold event data
  */
 type Event struct {
-	ID       bson.ObjectId `bson:"_id,omitempty" json:"id"`
-	Pushed   int64         `bson:"pushed" json:"pushed"`
-	Device   string        `bson:"device" json:"device"` // Device identifier (name or id)
-	Created  int64         `bson:"created" json:"created"`
-	Modified int64         `bson:"modified" json:"modified"`
-	Origin   int64         `bson:"origin" json:"origin"`
-	Event    string        `bson:"event,omitempty" json:"event"` // Schedule event identifier
-	Readings []Reading     `bson:"readings" json:"readings"`     // List of readings
+	ID       string    `json:"id" codec:"omitempty"`
+	Pushed   int64     `json:"pushed" codec:"omitempty"`
+	Device   string    `json:"device" codec:"omitempty"` // Device identifier (name or id)
+	Created  int64     `json:"created" codec:"omitempty"`
+	Modified int64     `json:"modified" codec:"omitempty"`
+	Origin   int64     `json:"origin" codec:"omitempty"`
+	Readings []Reading `json:"readings" codec:"omitempty"` // List of readings
+}
+
+func encodeAsCBOR(e Event) ([]byte, error) {
+	var handle codec.CborHandle
+	var byteBuffer = make([]byte, 0, 64)
+	enc := codec.NewEncoderBytes(&byteBuffer, &handle)
+
+	err := enc.Encode(e)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return byteBuffer, nil
 }
 
 // Custom marshaling to make empty strings null
 func (e Event) MarshalJSON() ([]byte, error) {
 	test := struct {
-		ID       bson.ObjectId `json:"id"`
-		Pushed   int64         `json:"pushed"`
-		Device   *string       `json:"device"` // Device identifier (name or id)
-		Created  int64         `json:"created"`
-		Modified int64         `json:"modified"`
-		Origin   int64         `json:"origin"`
-		Schedule *string       `json:"schedule"` // Schedule identifier
-		Event    *string       `json:"event"`    // Schedule event identifier
-		Readings []Reading     `json:"readings"` // List of readings
+		ID       *string   `json:"id,omitempty"`
+		Pushed   int64     `json:"pushed,omitempty"`
+		Device   *string   `json:"device,omitempty"` // Device identifier (name or id)
+		Created  int64     `json:"created,omitempty"`
+		Modified int64     `json:"modified,omitempty"`
+		Origin   int64     `json:"origin,omitempty"`
+		Readings []Reading `json:"readings,omitempty"` // List of readings
 	}{
-		ID:       e.ID,
 		Pushed:   e.Pushed,
 		Created:  e.Created,
 		Modified: e.Modified,
@@ -58,11 +67,11 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	}
 
 	// Empty strings are null
+	if e.ID != "" {
+		test.ID = &e.ID
+	}
 	if e.Device != "" {
 		test.Device = &e.Device
-	}
-	if e.Event != "" {
-		test.Event = &e.Event
 	}
 
 	// Empty arrays are null
@@ -80,4 +89,13 @@ func (e Event) String() string {
 	}
 
 	return string(out)
+}
+
+func (e Event) CBOR() []byte {
+	cbor, err := encodeAsCBOR(e)
+	if err != nil {
+		return []byte{}
+	}
+
+	return cbor
 }

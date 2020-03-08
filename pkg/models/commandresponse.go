@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,12 +11,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
+
 package models
 
 import (
 	"encoding/json"
+	"fmt"
 
-	"gopkg.in/mgo.v2/bson"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 /*
@@ -26,7 +28,7 @@ import (
  * CommandResponse struct
  */
 type CommandResponse struct {
-	Id             bson.ObjectId  `json:"id"`
+	Id             string         `json:"id"`
 	Name           string         `json:"name"`           // Unique name for identifying a device
 	AdminState     AdminState     `json:"adminState"`     // Admin state (locked/unlocked)
 	OperatingState OperatingState `json:"operatingState"` // Operating state (enabled/disabled)
@@ -40,7 +42,7 @@ type CommandResponse struct {
 // Custom marshaling to make empty strings null
 func (cr CommandResponse) MarshalJSON() ([]byte, error) {
 	res := struct {
-		Id             *bson.ObjectId `json:"id"`
+		Id             *string        `json:"id"`
 		Name           *string        `json:"name"`
 		AdminState     AdminState     `json:"adminState"`
 		OperatingState OperatingState `json:"operatingState"`
@@ -102,16 +104,14 @@ func CommandResponseFromDevice(d Device, cmdURL string) CommandResponse {
 		Commands:       d.Profile.Commands,
 	}
 
-	urlPath := "/api/v1/device/"
-	urlCmdPath := "/command/"
-	basePath := cmdURL + urlPath + d.Id.Hex() + urlCmdPath
+	basePath := fmt.Sprintf("%s%s/%s/command/", cmdURL, clients.ApiDeviceRoute, d.Id)
 
 	for _, c := range cmdResp.Commands {
 		if c.Get != nil {
-			c.Get.URL = createUrl(basePath, c.Id.Hex())
+			c.Get.URL = createUrl(basePath, c.Id)
 		}
 		if c.Put != nil {
-			c.Put.URL = createUrl(basePath, c.Id.Hex())
+			c.Put.URL = createUrl(basePath, c.Id)
 		}
 	}
 

@@ -15,10 +15,12 @@ package command
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
 	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
@@ -32,11 +34,11 @@ func issueCommand(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-func commandByDeviceID(did string, cid string, b string, p bool) (string, int) {
-	d, err := mdc.Device(did)
+func commandByDeviceID(did string, cid string, b string, p bool, ctx context.Context) (string, int) {
+	d, err := mdc.Device(did, ctx)
 
 	if err != nil {
-		LoggingClient.Error(err.Error(), "")
+		LoggingClient.Error(err.Error())
 
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -46,26 +48,15 @@ func commandByDeviceID(did string, cid string, b string, p bool) (string, int) {
 		}
 	}
 
-	if p && (d.AdminState == models.Locked) {
+	if d.AdminState == models.Locked {
 		LoggingClient.Error(d.Name + " is in admin locked state")
 
 		return "", http.StatusLocked
 	}
 
-	c, err := cc.Command(cid)
-	if err != nil {
-		LoggingClient.Error(err.Error(), "")
-
-		chk, ok := err.(*types.ErrServiceClient)
-		if ok {
-			return "", chk.StatusCode
-		} else {
-			return "", http.StatusInternalServerError
-		}
-	}
+	url := d.Service.Addressable.GetBaseURL() + clients.ApiDeviceRoute + "/" + d.Id + "/" + cid
 	if p {
-		url := d.Service.Addressable.GetBaseURL() + strings.Replace(c.Put.Action.Path, DEVICEIDURLPARAM, d.Id.Hex(), -1)
-		LoggingClient.Info("Issuing PUT command to: " + url)
+		LoggingClient.Debug("Issuing PUT command to: " + url)
 		req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(b))
 		if err != nil {
 			return "", http.StatusInternalServerError
@@ -78,8 +69,7 @@ func commandByDeviceID(did string, cid string, b string, p bool) (string, int) {
 		buf.ReadFrom(resp.Body)
 		return buf.String(), resp.StatusCode
 	} else {
-		url := d.Service.Addressable.GetBaseURL() + strings.Replace(c.Get.Action.Path, DEVICEIDURLPARAM, d.Id.Hex(), -1)
-		LoggingClient.Info("Issuing GET command to: " + url)
+		LoggingClient.Debug("Issuing GET command to: " + url)
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			return "", http.StatusInternalServerError
@@ -94,10 +84,10 @@ func commandByDeviceID(did string, cid string, b string, p bool) (string, int) {
 	}
 }
 
-func putDeviceAdminState(did string, as string) (int, error) {
-	err := mdc.UpdateAdminState(did, as)
+func putDeviceAdminState(did string, as string, ctx context.Context) (int, error) {
+	err := mdc.UpdateAdminState(did, as, ctx)
 	if err != nil {
-		LoggingClient.Error(err.Error(), "")
+		LoggingClient.Error(err.Error())
 
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -109,10 +99,10 @@ func putDeviceAdminState(did string, as string) (int, error) {
 	return http.StatusOK, err
 }
 
-func putDeviceAdminStateByName(dn string, as string) (int, error) {
-	err := mdc.UpdateAdminStateByName(dn, as)
+func putDeviceAdminStateByName(dn string, as string, ctx context.Context) (int, error) {
+	err := mdc.UpdateAdminStateByName(dn, as, ctx)
 	if err != nil {
-		LoggingClient.Error(err.Error(), "")
+		LoggingClient.Error(err.Error())
 
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -124,10 +114,10 @@ func putDeviceAdminStateByName(dn string, as string) (int, error) {
 	return http.StatusOK, err
 }
 
-func putDeviceOpState(did string, as string) (int, error) {
-	err := mdc.UpdateOpState(did, as)
+func putDeviceOpState(did string, as string, ctx context.Context) (int, error) {
+	err := mdc.UpdateOpState(did, as, ctx)
 	if err != nil {
-		LoggingClient.Error(err.Error(), "")
+		LoggingClient.Error(err.Error())
 
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -139,10 +129,10 @@ func putDeviceOpState(did string, as string) (int, error) {
 	return http.StatusOK, err
 }
 
-func putDeviceOpStateByName(dn string, as string) (int, error) {
-	err := mdc.UpdateOpStateByName(dn, as)
+func putDeviceOpStateByName(dn string, as string, ctx context.Context) (int, error) {
+	err := mdc.UpdateOpStateByName(dn, as, ctx)
 	if err != nil {
-		LoggingClient.Error(err.Error(), "")
+		LoggingClient.Error(err.Error())
 
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -154,8 +144,8 @@ func putDeviceOpStateByName(dn string, as string) (int, error) {
 	return http.StatusOK, err
 }
 
-func getCommands() (int, []models.CommandResponse, error) {
-	devices, err := mdc.Devices()
+func getCommands(ctx context.Context) (int, []models.CommandResponse, error) {
+	devices, err := mdc.Devices(ctx)
 	if err != nil {
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -166,14 +156,14 @@ func getCommands() (int, []models.CommandResponse, error) {
 	}
 	var cr []models.CommandResponse
 	for _, d := range devices {
-		cr = append(cr, models.CommandResponseFromDevice(d, constructCommandURL()))
+		cr = append(cr, commandResponseFromDevice(d, Configuration.Service.Url()))
 	}
 	return http.StatusOK, cr, err
 
 }
 
-func getCommandsByDeviceID(did string) (int, models.CommandResponse, error) {
-	d, err := mdc.Device(did)
+func getCommandsByDeviceID(did string, ctx context.Context) (int, models.CommandResponse, error) {
+	d, err := mdc.Device(did, ctx)
 	if err != nil {
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -182,11 +172,11 @@ func getCommandsByDeviceID(did string) (int, models.CommandResponse, error) {
 			return http.StatusInternalServerError, models.CommandResponse{}, err
 		}
 	}
-	return http.StatusOK, models.CommandResponseFromDevice(d, constructCommandURL()), err
+	return http.StatusOK, commandResponseFromDevice(d, Configuration.Service.Url()), err
 }
 
-func getCommandsByDeviceName(dn string) (int, models.CommandResponse, error) {
-	d, err := mdc.DeviceForName(dn)
+func getCommandsByDeviceName(dn string, ctx context.Context) (int, models.CommandResponse, error) {
+	d, err := mdc.DeviceForName(dn, ctx)
 	if err != nil {
 		chk, ok := err.(*types.ErrServiceClient)
 		if ok {
@@ -195,9 +185,42 @@ func getCommandsByDeviceName(dn string) (int, models.CommandResponse, error) {
 			return http.StatusInternalServerError, models.CommandResponse{}, err
 		}
 	}
-	return http.StatusOK, models.CommandResponseFromDevice(d, constructCommandURL()), err
+	return http.StatusOK, commandResponseFromDevice(d, Configuration.Service.Url()), err
 }
 
-func constructCommandURL() string {
-	return Configuration.URLProtocol + Configuration.ServiceAddress + ":" + strconv.Itoa(Configuration.ServicePort)
+func commandResponseFromDevice(d models.Device, cmdURL string) models.CommandResponse {
+	cmdResp := models.CommandResponse{
+		Id:             d.Id,
+		Name:           d.Name,
+		AdminState:     d.AdminState,
+		OperatingState: d.OperatingState,
+		LastConnected:  d.LastConnected,
+		LastReported:   d.LastReported,
+		Labels:         d.Labels,
+		Location:       d.Location,
+	}
+
+	basePath := fmt.Sprintf("%s%s/%s/command/", cmdURL, clients.ApiDeviceRoute, d.Id)
+
+	for _, rp := range d.Profile.Resources {
+		var c models.Command
+		c.Name = rp.Name
+
+		if len(rp.Get) != 0 {
+			var get models.Get
+			get.Path = clients.ApiDeviceRoute + "/{deviceId}/" + rp.Name
+			get.URL = basePath + rp.Name
+			c.Get = &get
+		}
+		if len(rp.Set) != 0 {
+			var put models.Put
+			put.Path = clients.ApiDeviceRoute + "/{deviceId}/" + rp.Name
+			put.URL = basePath + rp.Name
+			c.Put = &put
+		}
+
+		cmdResp.Commands = append(cmdResp.Commands, c)
+	}
+
+	return cmdResp
 }

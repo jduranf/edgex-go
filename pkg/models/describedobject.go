@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,8 +17,8 @@ package models
 import "encoding/json"
 
 type DescribedObject struct {
-	BaseObject  `bson:",inline" yaml:",inline"`
-	Description string `bson:"description" json:"description" yaml:"description"`
+	BaseObject  `yaml:",inline"`
+	Description string `json:"description" yaml:"description,omitempty"`
 }
 
 /*

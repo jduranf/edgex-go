@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,7 +16,6 @@ package models
 
 import (
 	"encoding/json"
-	"gopkg.in/mgo.v2/bson"
 )
 
 /*
@@ -27,36 +26,41 @@ import (
  * Struct for the Reading object in EdgeX
  */
 type Reading struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Pushed   int64         `bson:"pushed" json:"pushed"`   // When the data was pushed out of EdgeX (0 - not pushed yet)
-	Created  int64         `bson:"created" json:"created"` // When the reading was created
-	Origin   int64         `bson:"origin" json:"origin"`
-	Modified int64         `bson:"modified" json:"modified"`
-	Device   string        `bson:"device" json:"device"`
-	Name     string        `bson:"name" json:"name"`
-	Value    string        `bson:"value" json:"value"` // Device sensor data value
+	Id          string `json:"id"`
+	Pushed      int64  `json:"pushed"`  // When the data was pushed out of EdgeX (0 - not pushed yet)
+	Created     int64  `json:"created"` // When the reading was created
+	Origin      int64  `json:"origin"`
+	Modified    int64  `json:"modified"`
+	Device      string `json:"device"`
+	Name        string `json:"name"`
+	Value       string `json:"value"` // Device sensor data value
+	BinaryValue []byte `json:"binaryValue"`  // Binary data payload
 }
 
 // Custom marshaling to make empty strings null
 func (r Reading) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Id       bson.ObjectId `json:"id"`
-		Pushed   int64         `json:"pushed"`  // When the data was pushed out of EdgeX (0 - not pushed yet)
-		Created  int64         `json:"created"` // When the reading was created
-		Origin   int64         `json:"origin"`
-		Modified int64         `json:"modified"`
-		Device   *string       `json:"device"`
-		Name     *string       `json:"name"`
-		Value    *string       `json:"value"` // Device sensor data value
+		Id          *string `json:"id,omitempty"`
+		Pushed      int64   `json:"pushed,omitempty"`  // When the data was pushed out of EdgeX (0 - not pushed yet)
+		Created     int64   `json:"created,omitempty"` // When the reading was created
+		Origin      int64   `json:"origin,omitempty"`
+		Modified    int64   `json:"modified,omitempty"`
+		Device      *string `json:"device,omitempty"`
+		Name        *string `json:"name,omitempty"`
+		Value       *string `json:"value,omitempty"`       // Device sensor data value
+		BinaryValue []byte  `json:"binaryValue,omitempty"` // Binary data payload
 	}{
-		Id:       r.Id,
-		Pushed:   r.Pushed,
-		Created:  r.Created,
-		Origin:   r.Origin,
-		Modified: r.Modified,
+		Pushed:      r.Pushed,
+		Created:     r.Created,
+		Origin:      r.Origin,
+		Modified:    r.Modified,
+		BinaryValue: r.BinaryValue,
 	}
 
 	// Empty strings are null
+	if r.Id != "" {
+		test.Id = &r.Id
+	}
 	if r.Device != "" {
 		test.Device = &r.Device
 	}

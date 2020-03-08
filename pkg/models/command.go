@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,7 +16,6 @@ package models
 
 import (
 	"encoding/json"
-	"gopkg.in/mgo.v2/bson"
 )
 
 /*
@@ -26,21 +25,21 @@ import (
  * Command struct
  */
 type Command struct {
-	BaseObject `bson:",inline" yaml:",inline"`
-	Id         bson.ObjectId `bson:"_id,omitempty" json:"id"`
-	Name       string        `bson:"name" json:"name" yaml:"name"` // Command name (unique on the profile)
-	Get        *Get          `bson:"get" json:"get" yaml:"get"`    // Get Command
-	Put        *Put          `bson:"put" json:"put" yaml:"put"`    // Put Command
+	BaseObject `yaml:",inline"`
+	Id         string `json:"id" yaml:"id,omitempty"`
+	Name       string `json:"name" yaml:"name,omitempty"` // Command name (unique on the profile)
+	Get        *Get   `json:"get" yaml:"get,omitempty"`   // Get Command
+	Put        *Put   `json:"put" yaml:"put,omitempty"`   // Put Command
 }
 
 // Custom marshaling for making empty strings null
 func (c Command) MarshalJSON() ([]byte, error) {
 	test := struct {
 		BaseObject
-		Id   *bson.ObjectId `json:"id"`
-		Name *string        `json:"name"` // Command name (unique on the profile)
-		Get  *Get           `json:"get"`  // Get Command
-		Put  *Put           `json:"put"`  // Put Command
+		Id   *string `json:"id,omitempty"`
+		Name *string `json:"name,omitempty"` // Command name (unique on the profile)
+		Get  *Get    `json:"get,omitempty"`  // Get Command
+		Put  *Put    `json:"put,omitempty"`  // Put Command
 	}{
 		BaseObject: c.BaseObject,
 		Get:        c.Get,

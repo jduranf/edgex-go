@@ -17,15 +17,21 @@
 package agent
 
 import (
+	"encoding/json"
 	"net/http"
 )
 
 // Test if the service is working
-func pingHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("pong"))
+}
 
-	_, err := w.Write([]byte("pong"))
+func ProcessResponse(response string) map[string]interface{} {
+	rsp := make(map[string]interface{})
+	err := json.Unmarshal([]byte(response), &rsp)
 	if err != nil {
-		LoggingClient.Error("Error writing pong: " + err.Error())
+		LoggingClient.Error("error unmarshalling response from JSON: %v", err.Error())
 	}
+	return rsp
 }

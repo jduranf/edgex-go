@@ -14,17 +14,36 @@
 package command
 
 import (
+	"encoding/json"
 	"net/http"
 
-	mux "github.com/gorilla/mux"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/gorilla/mux"
+
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
 func LoadRestRoutes() http.Handler {
 	r := mux.NewRouter()
-	b := r.PathPrefix("/api/v1").Subrouter()
-	b.HandleFunc(PINGENDPOINT, ping)
+
+	// Ping Resource
+	r.HandleFunc(clients.ApiPingRoute, pingHandler).Methods(http.MethodGet)
+
+	// Configuration
+	r.HandleFunc(clients.ApiConfigRoute, configHandler).Methods(http.MethodGet)
+
+	// Metrics
+	r.HandleFunc(clients.ApiMetricsRoute, metricsHandler).Methods(http.MethodGet)
+
+	b := r.PathPrefix(clients.ApiBase).Subrouter()
 
 	loadDeviceRoutes(b)
+
+	r.Use(correlation.ManageHeader)
+	r.Use(correlation.OnResponseComplete)
+	r.Use(correlation.OnRequestBegin)
+
 	return r
 }
 
@@ -50,7 +69,33 @@ func loadDeviceRoutes(b *mux.Router) {
 }
 
 // Respond with PINGRESPONSE to see if the service is alive
-func ping(w http.ResponseWriter, _ *http.Request) {
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set(CONTENTTYPE, TEXTPLAIN)
 	w.Write([]byte(PINGRESPONSE))
+}
+
+func configHandler(w http.ResponseWriter, _ *http.Request) {
+	encode(Configuration, w)
+}
+
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	s := telemetry.NewSystemUsage()
+
+	encode(s, w)
+
+	return
+}
+
+// Helper function for encoding things for returning from REST calls
+func encode(i interface{}, w http.ResponseWriter) {
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	err := enc.Encode(i)
+	// Problems encoding
+	if err != nil {
+		LoggingClient.Error("Error encoding the data: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

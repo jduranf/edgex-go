@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,17 +27,17 @@ import (
  * Response Struct
  */
 type Response struct {
-	Code           string   `bson:"code" json:"code" yaml:"code"`
-	Description    string   `bson:"description" json:"description" yaml:"description"`
-	ExpectedValues []string `bson:"expectedValues" json:"expectedValues" yaml:"expectedValues"`
+	Code           string   `json:"code" yaml:"code,omitempty"`
+	Description    string   `json:"description" yaml:"description,omitempty"`
+	ExpectedValues []string `json:"expectedValues" yaml:"expectedValues,omitempty"`
 }
 
 // Custom marshalling to make empty strings null
 func (r Response) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Code           *string  `json:"code"`
-		Description    *string  `json:"description"`
-		ExpectedValues []string `json:"expectedValues"`
+		Code           *string  `json:"code,omitempty"`
+		Description    *string  `json:"description,omitempty"`
+		ExpectedValues []string `json:"expectedValues,omitempty"`
 	}{
 		ExpectedValues: r.ExpectedValues,
 	}

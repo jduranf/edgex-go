@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,33 +11,26 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
+
 package metadata
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 	"github.com/edgexfoundry/edgex-go/pkg/models"
-)
-
-const (
-	deviceUriPath        = "/api/v1/device"
-	commandUriPath       = "/api/v1/command"
-	deviceServiceUriPath = "/api/v1/deviceservice"
 )
 
 // Test adding a device using the device client
 
 // Test adding a device using the device client
 func TestAddDevice(t *testing.T) {
+
 	d := models.Device{
 		Id:             "1234",
-		Addressable:    models.Addressable{},
 		AdminState:     "UNLOCKED",
 		Name:           "Test name for device",
 		OperatingState: "ENABLED",
@@ -45,7 +38,7 @@ func TestAddDevice(t *testing.T) {
 		Service:        models.DeviceService{},
 	}
 
-	addingDeviceId := d.Id.Hex()
+	addingDeviceId := d.Id
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -54,8 +47,8 @@ func TestAddDevice(t *testing.T) {
 			t.Errorf("expected http method is %s, active http method is : %s", http.MethodPost, r.Method)
 		}
 
-		if r.URL.EscapedPath() != deviceUriPath {
-			t.Errorf("expected uri path is %s, actual uri path is %s", deviceUriPath, r.URL.EscapedPath())
+		if r.URL.EscapedPath() != clients.ApiDeviceRoute {
+			t.Errorf("expected uri path is %s, actual uri path is %s", clients.ApiDeviceRoute, r.URL.EscapedPath())
 		}
 
 		w.Write([]byte(addingDeviceId))
@@ -64,58 +57,15 @@ func TestAddDevice(t *testing.T) {
 
 	defer ts.Close()
 
-	url := ts.URL + deviceUriPath
+	url := ts.URL + clients.ApiDeviceRoute
+	dc := NewDeviceClient(url)
 
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreMetaDataServiceKey,
-		Path:        deviceUriPath,
-		UseRegistry: false,
-		Url:         url}
-	dc := NewDeviceClient(params, MockEndpoint{})
-
-	receivedDeviceId, err := dc.Add(&d)
+	receivedDeviceId, err := dc.Add(&d, context.Background())
 	if err != nil {
 		t.Error(err.Error())
 	}
 
 	if receivedDeviceId != addingDeviceId {
 		t.Errorf("expected device id : %s, actual device id : %s", receivedDeviceId, addingDeviceId)
-	}
-}
-
-func TestNewDeviceClientWithConsul(t *testing.T) {
-	deviceUrl := "http://localhost:48081" + deviceUriPath
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreMetaDataServiceKey,
-		Path:        deviceUriPath,
-		UseRegistry: true,
-		Url:         deviceUrl}
-
-	dc := NewDeviceClient(params, MockEndpoint{})
-
-	r, ok := dc.(*DeviceRestClient)
-	if !ok {
-		t.Error("dc is not of expected type")
-	}
-
-	time.Sleep(25 * time.Millisecond)
-	if len(r.url) == 0 {
-		t.Error("url was not initialized")
-	} else if r.url != deviceUrl {
-		t.Errorf("unexpected url value %s", r.url)
-	}
-}
-
-type MockEndpoint struct {
-}
-
-func (e MockEndpoint) Monitor(params types.EndpointParams, ch chan string) {
-	switch params.ServiceKey {
-	case internal.CoreMetaDataServiceKey:
-		url := fmt.Sprintf("http://%s:%v%s", "localhost", 48081, params.Path)
-		ch <- url
-		break
-	default:
-		ch <- ""
 	}
 }

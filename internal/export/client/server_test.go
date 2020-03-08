@@ -8,6 +8,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,27 +18,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/export"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/memory"
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/internal"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 const regJson = `{"origin":1471806386919,"name":"OSIClient","addressable":{"origin":1471806386919,"name":"OSIMQTTBroker","protocol":"TCP","address":"m10.cloudmqtt.com","port":15421,"publisher":"EdgeXExportPublisher","user":"hukfgtoh","password":"uP6hJLYW6Ji4","topic":"EdgeXDataTopic"},"format":"JSON","filter":{"deviceIdentifiers":["livingroomthermosat", "hallwaythermostat"],"valueDescriptorIdentifiers":["temperature", "humidity"]},"encryption":{"encryptionAlgorithm":"AES","encryptionKey":"123","initializingVector":"123"},"compression":"GZIP","enable":true, "destination": "REST_ENDPOINT"}`
 
-func prepareTest(t *testing.T) *httptest.Server {
-	if testing.Verbose() {
-		logger, _ = zap.NewProduction()
-	} else {
-		logger = zap.NewNop()
-	}
-	defer logger.Sync()
+type distroMockClient struct{}
 
-	dbc = &memory.MemDB{}
+func (d *distroMockClient) NotifyRegistrations(models.NotifyUpdate, context.Context) error {
+	return nil
+}
+
+func prepareTest(t *testing.T) *httptest.Server {
+	LoggingClient = logger.NewClient(internal.ExportClientServiceKey, false, "./logs/edgex-export-client-test.log", logger.InfoLog)
+
+	dbClient = &MemDB{}
+	dc = &distroMockClient{}
 	return httptest.NewServer(httpServer())
 }
 
 func createRegistration(t *testing.T, serverUrl string) string {
-	response, err := http.Post(serverUrl+apiV1Registration, "application/json",
+	response, err := http.Post(serverUrl+clients.ApiRegistrationRoute, "application/json",
 		strings.NewReader(regJson))
 	if err != nil {
 		t.Errorf("Error sending log %v", err)
@@ -56,7 +60,7 @@ func TestPing(t *testing.T) {
 	ts := httptest.NewServer(httpServer())
 	defer ts.Close()
 
-	response, err := http.Get(ts.URL + apiV1Ping)
+	response, err := http.Get(ts.URL + clients.ApiPingRoute)
 	if err != nil {
 		t.Errorf("Error getting ping: %v", err)
 	}
@@ -85,7 +89,7 @@ func TestRegistrationAdd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := http.Post(ts.URL+apiV1Registration, "application/json",
+			response, err := http.Post(ts.URL+clients.ApiRegistrationRoute, "application/json",
 				strings.NewReader(tt.data))
 			if err != nil {
 				t.Errorf("Error sending log %v", err)
@@ -105,7 +109,7 @@ func TestRegistrationAddTwice(t *testing.T) {
 
 	createRegistration(t, ts.URL)
 
-	response, err := http.Post(ts.URL+apiV1Registration, "application/json",
+	response, err := http.Post(ts.URL+clients.ApiRegistrationRoute, "application/json",
 		strings.NewReader(regJson))
 	if err != nil {
 		t.Errorf("Error sending log %v", err)
@@ -165,7 +169,7 @@ func TestRegistrationUpdate(t *testing.T) {
 				d = tt.data
 			}
 
-			response := requestMethod(t, http.MethodPut, ts.URL+apiV1Registration,
+			response := requestMethod(t, http.MethodPut, ts.URL+clients.ApiRegistrationRoute,
 				bytes.NewBufferString(d))
 			defer response.Body.Close()
 
@@ -182,14 +186,14 @@ func TestRegistrationDelByName(t *testing.T) {
 
 	createRegistration(t, ts.URL)
 
-	response := requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/name/invalid",
+	response := requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/name/invalid",
 		nil)
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusNotFound {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusNotFound)
 	}
-	response = requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/name/OSIClient",
+	response = requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/name/OSIClient",
 		nil)
 	defer response.Body.Close()
 
@@ -197,7 +201,7 @@ func TestRegistrationDelByName(t *testing.T) {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusOK)
 	}
 
-	response = requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/name/OSIClient",
+	response = requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/name/OSIClient",
 		nil)
 	defer response.Body.Close()
 
@@ -212,7 +216,7 @@ func TestRegistrationDelById(t *testing.T) {
 
 	id := createRegistration(t, ts.URL)
 
-	response := requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/id/invalid",
+	response := requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/id/invalid",
 		nil)
 	defer response.Body.Close()
 
@@ -220,7 +224,7 @@ func TestRegistrationDelById(t *testing.T) {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusNotFound)
 	}
 
-	response = requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/id/"+id,
+	response = requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/id/"+id,
 		nil)
 	defer response.Body.Close()
 
@@ -228,7 +232,7 @@ func TestRegistrationDelById(t *testing.T) {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusOK)
 	}
 
-	response = requestMethod(t, http.MethodDelete, ts.URL+apiV1Registration+"/id/"+id,
+	response = requestMethod(t, http.MethodDelete, ts.URL+clients.ApiRegistrationRoute+"/id/"+id,
 		nil)
 	defer response.Body.Close()
 
@@ -243,7 +247,7 @@ func TestRegistrationGetByName(t *testing.T) {
 
 	createRegistration(t, ts.URL)
 
-	response, err := http.Get(ts.URL + apiV1Registration + "/name/OSIClient")
+	response, err := http.Get(ts.URL + clients.ApiRegistrationRoute + "/name/OSIClient")
 	if err != nil {
 		t.Errorf("Error getting registration: %v", err)
 	}
@@ -252,7 +256,7 @@ func TestRegistrationGetByName(t *testing.T) {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusOK)
 	}
 
-	response, err = http.Get(ts.URL + apiV1Registration + "/name/invalid")
+	response, err = http.Get(ts.URL + clients.ApiRegistrationRoute + "/name/invalid")
 	if err != nil {
 		t.Errorf("Error getting registration: %v", err)
 	}
@@ -268,7 +272,7 @@ func TestRegistrationGetById(t *testing.T) {
 
 	id := createRegistration(t, ts.URL)
 
-	response, err := http.Get(ts.URL + apiV1Registration + "/" + id)
+	response, err := http.Get(ts.URL + clients.ApiRegistrationRoute + "/" + id)
 	if err != nil {
 		t.Errorf("Error getting registration: %v", err)
 	}
@@ -277,7 +281,7 @@ func TestRegistrationGetById(t *testing.T) {
 		t.Errorf("Returned status %d, should be %d", response.StatusCode, http.StatusOK)
 	}
 
-	response, err = http.Get(ts.URL + apiV1Registration + "/invalid")
+	response, err = http.Get(ts.URL + clients.ApiRegistrationRoute + "/invalid")
 	if err != nil {
 		t.Errorf("Error getting registration: %v", err)
 	}
@@ -292,7 +296,7 @@ func TestRegistrationGetList(t *testing.T) {
 		typeStr string
 		status  int
 	}{
-		{"", http.StatusBadRequest},
+		{"", http.StatusNotFound},
 		{"invalid", http.StatusBadRequest},
 		{typeAlgorithms, http.StatusOK},
 		{typeCompressions, http.StatusOK},
@@ -305,7 +309,7 @@ func TestRegistrationGetList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.typeStr, func(t *testing.T) {
-			response, err := http.Get(ts.URL + apiV1Registration + "/reference/" + tt.typeStr)
+			response, err := http.Get(ts.URL + clients.ApiRegistrationRoute + "/reference/" + tt.typeStr)
 			if err != nil {
 				t.Errorf("Error getting reference type: %v", err)
 			}
@@ -317,8 +321,8 @@ func TestRegistrationGetList(t *testing.T) {
 	}
 }
 
-func getRegistrations(t *testing.T, serverUrl string) []export.Registration {
-	response, err := http.Get(serverUrl + apiV1Registration)
+func getRegistrations(t *testing.T, serverUrl string) []models.Registration {
+	response, err := http.Get(serverUrl + clients.ApiRegistrationRoute)
 	if err != nil {
 		t.Errorf("Error getting registrations: %v", err)
 	}
@@ -329,7 +333,7 @@ func getRegistrations(t *testing.T, serverUrl string) []export.Registration {
 
 	var data []byte
 	data, _ = ioutil.ReadAll(response.Body)
-	var regs []export.Registration
+	var regs []models.Registration
 	if err := json.Unmarshal(data, &regs); err != nil {
 		t.Errorf("Registrations could not be parsed: %v", err)
 	}

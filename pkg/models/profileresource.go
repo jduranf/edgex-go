@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,17 +17,17 @@ package models
 import "encoding/json"
 
 type ProfileResource struct {
-	Name string              `bson:"name" json:"name"`
-	Get  []ResourceOperation `bson:"get" json:"get"`
-	Set  []ResourceOperation `bson:"set" json:"set"`
+	Name string              `json:"name" yaml:"name,omitempty"`
+	Get  []ResourceOperation `json:"get" yaml:"get,omitempty"`
+	Set  []ResourceOperation `json:"set" yaml:"set,omitempty"`
 }
 
 // Custom marshaling to make empty strings null
 func (pr ProfileResource) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Name *string             `json:"name"`
-		Get  []ResourceOperation `json:"get"`
-		Set  []ResourceOperation `json:"set"`
+		Name *string             `json:"name,omitempty"`
+		Get  []ResourceOperation `json:"get,omitempty"`
+		Set  []ResourceOperation `json:"set,omitempty"`
 	}{}
 
 	// Empty strings are null

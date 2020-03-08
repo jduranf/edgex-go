@@ -12,11 +12,12 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/pkg/models"
-	"github.com/satori/go.uuid"
-	"go.uber.org/zap"
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/google/uuid"
 )
 
 type jsonFormatter struct {
@@ -32,11 +33,11 @@ const (
 	full
 )
 
-func (jsonTr jsonFormatter) Format(event *models.Event) []byte {
+func (jsonTr jsonFormatter) Format(event *contract.Event) []byte {
 
 	b, err := json.Marshal(event)
 	if err != nil {
-		logger.Error("Error parsing JSON", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Error parsing JSON. Error: %s", err.Error()))
 		return nil
 	}
 	return b
@@ -45,10 +46,10 @@ func (jsonTr jsonFormatter) Format(event *models.Event) []byte {
 type xmlFormatter struct {
 }
 
-func (xmlTr xmlFormatter) Format(event *models.Event) []byte {
+func (xmlTr xmlFormatter) Format(event *contract.Event) []byte {
 	b, err := xml.Marshal(event)
 	if err != nil {
-		logger.Error("Error parsing XML", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Error parsing XML. Error: %s", err.Error()))
 		return nil
 	}
 	return b
@@ -59,7 +60,7 @@ type thingsboardJSONFormatter struct {
 
 // ThingsBoard JSON formatter
 // https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
-func (thingsboardjsonTr thingsboardJSONFormatter) Format(event *models.Event) []byte {
+func (thingsboardjsonTr thingsboardJSONFormatter) Format(event *contract.Event) []byte {
 
 	type Device struct {
 		Ts     int64             `json:"ts"`
@@ -79,7 +80,51 @@ func (thingsboardjsonTr thingsboardJSONFormatter) Format(event *models.Event) []
 
 	b, err := json.Marshal(device)
 	if err != nil {
-		logger.Error("Error parsing ThingsBoard JSON", zap.Error(err))
+		LoggingClient.Error(fmt.Sprintf("Error parsing ThingsBoard JSON. Error: %s", err.Error()))
+		return nil
+	}
+	return b
+}
+
+type dexmaJSONFormatter struct {
+}
+
+// Dexma JSON formatter
+//http://support.dexmatech.com/customer/en/portal/articles/1745389-http-json-api-data-insertion-
+func (dexmajsonTr dexmaJSONFormatter) Format(event *contract.Event) []byte {
+
+	type Value struct {
+		P int `json:"p"`
+		V int `json:"v"`
+	}
+
+	type Device struct {
+		Did    string  `json:"did"`
+		Sqn    int     `json:"sqn"`
+		Ts     string  `json:"ts"`
+		Values []Value `json:"values"`
+	}
+
+	var value Value
+	var values []Value
+
+	for _, reading := range event.Readings {
+		value.P = transformDexmaParam(reading.Name)
+		value.V, _ = strconv.Atoi(reading.Value)
+		if value.P == 0 {
+			LoggingClient.Error(fmt.Sprintf("Error on Dexma parameter name: %s", reading.Name))
+		} else {
+			values = append(values, value)
+		}
+	}
+
+	var devices []Device
+	time := time.Unix(event.Origin/1000, 0).Format(time.RFC3339)
+	devices = append(devices, Device{Did: event.Device, Sqn: 1, Ts: time, Values: values})
+
+	b, err := json.Marshal(devices)
+	if err != nil {
+		LoggingClient.Error(fmt.Sprintf("Error parsing Dexma JSON. Error: %s", err.Error()))
 		return nil
 	}
 	return b
@@ -111,19 +156,19 @@ type AzureMessage struct {
 	Properties     map[string]string `json:"properties"`
 }
 
-// NewAzureMessage creates a new Azure message and sets
+// newAzureMessage creates a new Azure message and sets
 // Body and default fields values.
-func NewAzureMessage() (*AzureMessage, error) {
+func newAzureMessage() (*AzureMessage, error) {
 	msg := &AzureMessage{
 		Ack:        none,
 		Properties: make(map[string]string),
 		Created:    time.Now(),
 	}
 
-	id:= uuid.NewV4()
+	id := uuid.New()
 	msg.ID = id.String()
 
-	correlationID := uuid.NewV4()
+	correlationID := uuid.New()
 	msg.CorrelationID = correlationID.String()
 
 	return msg, nil
@@ -141,31 +186,136 @@ type azureFormatter struct {
 }
 
 // Format method does all foramtting job.
-func (af azureFormatter) Format(event *models.Event) []byte {
-	am, err := NewAzureMessage()
+func (af azureFormatter) Format(event *contract.Event) []byte {
+	am, err := newAzureMessage()
 	if err != nil {
-		logger.Error(fmt.Sprintf("error creating a new Azure message: %s", err))
+		LoggingClient.Error(fmt.Sprintf("Error creating a new Azure message: %s", err))
 		return []byte{}
 	}
 	am.ConnDevID = event.Device
 	am.UserID = string(event.Origin)
 	data, err := json.Marshal(event)
 	if err != nil {
-		logger.Error(fmt.Sprintf("error parsing Event data: %s", err))
+		LoggingClient.Error(fmt.Sprintf("Error parsing Event data: %s", err))
 		return []byte{}
 	}
 	am.Body = data
 	msg, err := json.Marshal(am)
 	if err != nil {
-		logger.Error(fmt.Sprintf("error parsing AzureMessage data: %s", err))
+		LoggingClient.Error(fmt.Sprintf("Error parsing Azure Message data: %s", err))
 		return []byte{}
 	}
+	return msg
+}
+
+// converting event to AWS shadow message in bytes
+type awsFormatter struct {
+}
+
+func (af awsFormatter) Format(event *contract.Event) []byte {
+	reported := map[string]interface{}{}
+
+	for _, reading := range event.Readings {
+		value, err := strconv.ParseFloat(reading.Value, 64)
+
+		if err != nil {
+			strVal := reading.Value
+			// not a valid numerical reading value, see if it's boolean
+			if strings.Compare(strings.ToLower(strVal), "true") == 0 {
+				reported[reading.Name] = true
+			} else if strings.Compare(strings.ToLower(strVal), "false") == 0 {
+				reported[reading.Name] = false
+			} else {
+				reported[reading.Name] = strVal
+			}
+
+			continue
+		}
+
+		reported[reading.Name] = value
+	}
+
+	currState := map[string]interface{}{
+		"state": map[string]interface{}{
+			"reported": reported,
+		},
+	}
+
+	msg, err := json.Marshal(currState)
+
+	if err != nil {
+		LoggingClient.Error(fmt.Sprintf("Error generating AWS shadow document: %s", err))
+		return []byte{}
+	}
+
 	return msg
 }
 
 type noopFormatter struct {
 }
 
-func (noopFmt noopFormatter) Format(event *models.Event) []byte {
+func (noopFmt noopFormatter) Format(event *contract.Event) []byte {
 	return []byte{}
+}
+
+// BIoTMessage represents Brightics IoT(Samsung SDS IoT platform)  messages.
+type BIoTMessage struct {
+	Version    string `json:"version"`
+	MsgType    string `json:"msgType"`
+	FuncType   string `json:"funcType"`
+	SId        string `json:"sId"`
+	TpId       string `json:"tpId"`
+	TId        string `json:"tId"`
+	MsgCode    string `json:"msgCode"`
+	MsgId      string `json:"msgId"`
+	MsgDate    int64  `json:"msgDate"`
+	ResCode    string `json:"resCode"`
+	ResMsg     string `json:"resMsg"`
+	Severity   string `json:"severity"`
+	Dataformat string `json:"dataformat"`
+	EncType    string `json:"encType"`
+	AuthToken  string `json:"authToken"`
+	Data       []byte `json:"data"`
+}
+
+// newBIoTMessage creates a new Brightics IoT message and sets
+// Body and default fields values.
+func newBIoTMessage() (*BIoTMessage, error) {
+	msg := &BIoTMessage{
+		Severity: "1",
+		MsgType:  "Q",
+	}
+
+	id := uuid.New()
+	msg.MsgId = id.String()
+
+	return msg, nil
+}
+
+// brighticsiotFormatter is used to convert Event to BIoT message and
+// BIoT message to bytes.
+type biotFormatter struct {
+}
+
+// Format method does all foramtting job.
+func (af biotFormatter) Format(event *contract.Event) []byte {
+	bm, err := newBIoTMessage()
+	if err != nil {
+		LoggingClient.Error(fmt.Sprintf("error creating a new BIoT message: %s", err))
+		return []byte{}
+	}
+	bm.TpId = event.Device
+	bm.TId = string(event.Origin)
+	rawdata, err := json.Marshal(event)
+	if err != nil {
+		LoggingClient.Error(fmt.Sprintf("error parsing Event data to BIoTMessage : %s", err))
+		return []byte{}
+	}
+	bm.Data = rawdata
+	msg, err := json.Marshal(bm)
+	if err != nil {
+		LoggingClient.Error(fmt.Sprintf("error parsing BIoTMessage to data: %s", err))
+		return []byte{}
+	}
+	return msg
 }

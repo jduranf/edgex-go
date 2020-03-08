@@ -11,13 +11,16 @@ package distro
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal/export/interfaces"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
-
-	"go.uber.org/zap"
+	"github.com/edgexfoundry/edgex-go/internal"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 type httpSender struct {
@@ -27,8 +30,8 @@ type httpSender struct {
 
 const mimeTypeJSON = "application/json"
 
-// NewHTTPSender - create http sender
-func NewHTTPSender(addr models.Addressable) interfaces.Sender {
+// newHTTPSender - create http sender
+func newHTTPSender(addr contract.Addressable) sender {
 
 	sender := httpSender{
 		url:    addr.Protocol + "://" + addr.Address + ":" + strconv.Itoa(addr.Port) + addr.Path,
@@ -37,22 +40,34 @@ func NewHTTPSender(addr models.Addressable) interfaces.Sender {
 	return sender
 }
 
+// Send will send the optionally filtered, compressed, encypted contract.Event via HTTP POST
+// The model.Event is provided in order to obtain the necessary correlation-id.
 func (sender httpSender) Send(data []byte, event *models.Event) bool {
 
 	switch sender.method {
 	case http.MethodPost:
-		response, err := http.Post(sender.url, mimeTypeJSON, bytes.NewReader(data))
+		ctx := context.WithValue(context.Background(), clients.CorrelationHeader, event.CorrelationId)
+		req, err := http.NewRequest(http.MethodPost, sender.url, bytes.NewReader(data))
 		if err != nil {
-			logger.Error("Error: ", zap.Error(err))
+			return false
+		}
+		req.Header.Set("Content-Type", mimeTypeJSON)
+
+		c := clients.NewCorrelatedRequest(req, ctx)
+		client := &http.Client{}
+		begin := time.Now()
+		response, err := client.Do(c.Request)
+		if err != nil {
+			LoggingClient.Error(err.Error(), clients.CorrelationHeader, event.CorrelationId, internal.LogDurationKey, time.Since(begin).String())
 			return false
 		}
 		defer response.Body.Close()
-		logger.Info("Response: ", zap.String("status", response.Status))
+		LoggingClient.Info(fmt.Sprintf("Response: %s", response.Status), clients.CorrelationHeader, event.CorrelationId, internal.LogDurationKey, time.Since(begin).String())
 	default:
-		logger.Info("Unsupported method: ", zap.String("method", sender.method))
+		LoggingClient.Info(fmt.Sprintf("Unsupported method: %s", sender.method))
 		return false
 	}
 
-	logger.Info("Sent data: ", zap.ByteString("data", data))
+	LoggingClient.Debug(fmt.Sprintf("Sent data: %X", data))
 	return true
 }

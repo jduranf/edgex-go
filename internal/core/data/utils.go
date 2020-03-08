@@ -15,8 +15,6 @@ package data
 
 import (
 	"encoding/json"
-	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -29,30 +27,7 @@ func encode(i interface{}, w http.ResponseWriter) {
 	// Problems encoding
 	if err != nil {
 		LoggingClient.Error("Error encoding the data: " + err.Error())
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-}
-
-// Printing function purely for debugging purposes
-// Print the body of a request to the console
-func printBody(r io.ReadCloser) {
-	body, err := ioutil.ReadAll(r)
-	bodyString := string(body)
-
-	if err != nil {
-		LoggingClient.Error(err.Error())
-	}
-
-	LoggingClient.Info(bodyString)
-}
-
-// Test if the service is working
-func pingHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	_, err := w.Write([]byte("pong"))
-	if err != nil {
-		LoggingClient.Error("Error writing pong: " + err.Error())
 	}
 }

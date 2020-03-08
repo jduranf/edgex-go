@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -57,14 +57,10 @@ func TestEvent_String(t *testing.T) {
 		want string
 	}{
 		{"event to string", TestEvent,
-			"{\"id\":\"\"" +
-				",\"pushed\":" + strconv.FormatInt(TestEvent.Pushed, 10) +
-				",\"device\":null" +
+			"{\"pushed\":" + strconv.FormatInt(TestEvent.Pushed, 10) +
 				",\"created\":" + strconv.FormatInt(TestEvent.Created, 10) +
 				",\"modified\":" + strconv.FormatInt(TestEvent.Modified, 10) +
 				",\"origin\":" + strconv.FormatInt(TestEvent.Origin, 10) +
-				",\"schedule\":null" +
-				",\"event\":null" +
 				",\"readings\":[" + TestReading.String() + "]" +
 				"}"},
 	}

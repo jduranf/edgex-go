@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,27 +17,25 @@ package models
 import "encoding/json"
 
 type ResourceOperation struct {
-	Index     string            `bson:"index" json:"index"`
-	Operation string            `bson:"operation" json:"operation"`
-	Object    string            `bson:"object" json:"object"`
-	Property  string            `bson:"property" json:"property"`
-	Parameter string            `bson:"parameter" json:"parameter"`
-	Resource  string            `bson:"resource" json:"resource"`
-	Secondary []string          `bson:"secondary" json:"secondary"`
-	Mappings  map[string]string `bson:"mappings" json:"mappings"`
+	Index     string            `json:"index" yaml:"index,omitempty"`
+	Operation string            `json:"operation" yaml:"operation,omitempty"`
+	Object    string            `json:"object" yaml:"object,omitempty"`
+	Parameter string            `json:"parameter" yaml:"parameter,omitempty"`
+	Resource  string            `json:"resource" yaml:"resource,omitempty"`
+	Secondary []string          `json:"secondary" yaml:"secondary,omitempty"`
+	Mappings  map[string]string `json:"mappings" yaml:"mappings,omitempty"`
 }
 
 // Custom marshaling to make empty strings null
 func (ro ResourceOperation) MarshalJSON() ([]byte, error) {
 	test := struct {
-		Index     *string           `json:"index"`
-		Operation *string           `json:"operation"`
-		Object    *string           `json:"object"`
-		Property  *string           `json:"property"`
-		Parameter *string           `json:"parameter"`
-		Resource  *string           `json:"resource"`
-		Secondary []string          `json:"secondary"`
-		Mappings  map[string]string `json:"mappings"`
+		Index     *string           `json:"index,omitempty"`
+		Operation *string           `json:"operation,omitempty"`
+		Object    *string           `json:"object,omitempty"`
+		Parameter *string           `json:"parameter,omitempty"`
+		Resource  *string           `json:"resource,omitempty"`
+		Secondary []string          `json:"secondary,omitempty"`
+		Mappings  map[string]string `json:"mappings,omitempty"`
 	}{
 		Secondary: ro.Secondary,
 		Mappings:  ro.Mappings,
@@ -52,9 +50,6 @@ func (ro ResourceOperation) MarshalJSON() ([]byte, error) {
 	}
 	if ro.Object != "" {
 		test.Object = &ro.Object
-	}
-	if ro.Property != "" {
-		test.Property = &ro.Property
 	}
 	if ro.Parameter != "" {
 		test.Parameter = &ro.Parameter

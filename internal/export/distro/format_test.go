@@ -9,19 +9,22 @@ package distro
 import (
 	"encoding/json"
 	"encoding/xml"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+
+	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 const (
-	devID1 = "id1"
+	devID1        = "id1"
+	readingName1  = "sensor1"
+	readingValue1 = "123.45"
 )
 
 func TestJson(t *testing.T) {
-	eventIn := models.Event{
+	eventIn := contract.Event{
 		Device: devID1,
 	}
 
@@ -31,7 +34,7 @@ func TestJson(t *testing.T) {
 		t.Fatal("out should not be nil")
 	}
 
-	var eventOut models.Event
+	var eventOut contract.Event
 	if err := json.Unmarshal(out, &eventOut); err != nil {
 		t.Fatalf("Error unmarshalling event: %v", err)
 	}
@@ -41,7 +44,7 @@ func TestJson(t *testing.T) {
 }
 
 func TestXml(t *testing.T) {
-	eventIn := models.Event{
+	eventIn := contract.Event{
 		Device: devID1,
 	}
 
@@ -51,7 +54,7 @@ func TestXml(t *testing.T) {
 		t.Fatal("out should not be nil")
 	}
 
-	var eventOut models.Event
+	var eventOut contract.Event
 	if err := xml.Unmarshal(out, &eventOut); err != nil {
 		t.Fatalf("Error unmarshalling event: %v", err)
 	}
@@ -61,7 +64,7 @@ func TestXml(t *testing.T) {
 }
 
 func TestThingsBoardJson(t *testing.T) {
-	eventIn := models.Event{
+	eventIn := contract.Event{
 		Device: devID1,
 	}
 
@@ -75,10 +78,28 @@ func TestThingsBoardJson(t *testing.T) {
 	if strings.HasPrefix(s, "{\""+devID1+"\":[{\"ts\":") == false {
 		t.Fatalf("Invalid ThingsBoard JSON format: %v", s)
 	}
+
+}
+
+func TestDexmaJson(t *testing.T) {
+	eventIn := contract.Event{
+		Device: devID1,
+	}
+
+	djf := dexmaJSONFormatter{}
+	out := djf.Format(&eventIn)
+	if out == nil {
+		t.Fatal("out should not be nil")
+	}
+
+	s := string(out[:])
+	if strings.HasPrefix(s, "[{\"did\":\""+devID1) == false {
+		t.Fatalf("Invalid Dexma JSON format: %v - %v", "[{\"did\":"+devID1, s)
+	}
 }
 
 func TestNoop(t *testing.T) {
-	eventIn := models.Event{
+	eventIn := contract.Event{
 		Device: devID1,
 	}
 
@@ -91,5 +112,57 @@ func TestNoop(t *testing.T) {
 
 	if len(out) != 0 {
 		t.Fatal("Formmated array length is not zero, length = " + strconv.Itoa(len(out)))
+	}
+}
+
+func TestAWSIoTJson(t *testing.T) {
+	eventIn := contract.Event{}
+
+	eventIn.Readings = append(eventIn.Readings, contract.Reading{Device: devID1, Name: readingName1, Value: readingValue1})
+
+	af := awsFormatter{}
+	out := af.Format(&eventIn)
+
+	if out == nil {
+		t.Fatal("out should not be nil")
+	}
+
+	var sd interface{}
+	err := json.Unmarshal(out, &sd)
+
+	if err != nil {
+		t.Fatalf("Error unmarshal the formatted string: %v %v", err, out)
+	}
+
+	shadow := sd.(map[string]interface{})
+
+	state := shadow["state"].(map[string]interface{})
+
+	reported := state["reported"].(map[string]interface{})
+
+	val, err := strconv.ParseFloat(readingValue1, 64)
+
+	if reported[readingName1] != val {
+		t.Fatalf("Unmshalred json is not correct: %v", reported)
+	}
+}
+
+func TestBIoT(t *testing.T) {
+	eventIn := contract.Event{}
+
+	eventIn.Readings = append(eventIn.Readings, contract.Reading{Device: devID1, Name: readingName1, Value: readingValue1})
+
+	xf := biotFormatter{}
+	out := xf.Format(&eventIn)
+
+	if out == nil {
+		t.Fatal("out should not be nil")
+	}
+
+	var sd interface{}
+	err := json.Unmarshal(out, &sd)
+
+	if err != nil {
+		t.Fatalf("Error unmarshal the formatted string: %v %v", err, out)
 	}
 }

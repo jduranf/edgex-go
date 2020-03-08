@@ -15,16 +15,24 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/gorilla/mux"
+
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/support/logging/models"
-	"github.com/go-zoo/bone"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
-func replyPing(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	str := `{"value" : "pong"}`
-	io.WriteString(w, str)
+// Test if the service is working
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("pong"))
+}
+
+func configHandler(w http.ResponseWriter, _ *http.Request) {
+	encode(Configuration, w)
 }
 
 func addLog(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +51,7 @@ func addLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !models.IsValidLogLevel(l.Level) {
+	if !logger.IsValidLogLevel(l.Level) {
 		s := fmt.Sprintf("Invalid level in LogEntry: %s", l.Level)
 		w.WriteHeader(http.StatusBadRequest)
 		io.WriteString(w, s)
@@ -57,9 +65,18 @@ func addLog(w http.ResponseWriter, r *http.Request) {
 	dbClient.add(l)
 }
 
+func checkMaxLimit(limit int) int {
+	if limit > Configuration.Service.ReadMaxLimit || limit == 0 {
+		return Configuration.Service.ReadMaxLimit
+	}
+	return limit
+}
+
 func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 	var criteria matchCriteria
-	limit := bone.GetValue(r, "limit")
+	vars := mux.Vars(r)
+
+	limit := vars["limit"]
 	if len(limit) > 0 {
 		var err error
 		criteria.Limit, err = strconv.Atoi(limit)
@@ -67,7 +84,7 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 		if err != nil {
 			s = fmt.Sprintf("Could not parse limit %s", limit)
 		} else if criteria.Limit < 0 {
-			s = fmt.Sprintf("Limit is not positive %d", criteria.Limit)
+			s = fmt.Sprintf("Limit cannot be negative %d", criteria.Limit)
 		}
 		if len(s) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -75,8 +92,10 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 			return nil
 		}
 	}
+	//In all cases, cap the # of entries returned at ReadMaxLimit
+	criteria.Limit = checkMaxLimit(criteria.Limit)
 
-	start := bone.GetValue(r, "start")
+	start := vars["start"]
 	if len(start) > 0 {
 		var err error
 		criteria.Start, err = strconv.ParseInt(start, 10, 64)
@@ -84,7 +103,7 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 		if err != nil {
 			s = fmt.Sprintf("Could not parse start %s", start)
 		} else if criteria.Start < 0 {
-			s = fmt.Sprintf("Start is not positive %d", criteria.Start)
+			s = fmt.Sprintf("Start cannot be negative %d", criteria.Start)
 		}
 		if len(s) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -93,7 +112,7 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 		}
 	}
 
-	end := bone.GetValue(r, "end")
+	end := vars["end"]
 	if len(end) > 0 {
 		var err error
 		criteria.End, err = strconv.ParseInt(end, 10, 64)
@@ -101,7 +120,7 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 		if err != nil {
 			s = fmt.Sprintf("Could not parse end %s", end)
 		} else if criteria.End < 0 {
-			s = fmt.Sprintf("End is not positive %d", criteria.End)
+			s = fmt.Sprintf("End cannot be negative %d", criteria.End)
 		}
 		if len(s) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -110,29 +129,46 @@ func getCriteria(w http.ResponseWriter, r *http.Request) *matchCriteria {
 		}
 	}
 
-	labels := bone.GetValue(r, "labels")
-	if len(labels) > 0 {
-		criteria.Labels = append(criteria.Labels, strings.Split(labels, ",")...)
+	age := vars["age"]
+	if len(age) > 0 {
+		criteria.Start = 0
+		now := db.MakeTimestamp()
+		var err error
+		criteria.End, err = strconv.ParseInt(age, 10, 64)
+		var s string
+		if err != nil {
+			s = fmt.Sprintf("Could not parse age %s", age)
+		} else if criteria.End < 0 {
+			s = fmt.Sprintf("Age cannot be negative %d", criteria.End)
+		} else if criteria.End > now {
+			s = fmt.Sprintf("Age value too large %d", criteria.End)
+		}
+		if len(s) > 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, s)
+			return nil
+		}
+		criteria.End = now - criteria.End
 	}
 
-	services := bone.GetValue(r, "services")
+	services := vars["services"]
 	if len(services) > 0 {
 		criteria.OriginServices = append(criteria.OriginServices,
 			strings.Split(services, ",")...)
 	}
 
-	keywords := bone.GetValue(r, "keywords")
+	keywords := vars["keywords"]
 	if len(keywords) > 0 {
 		criteria.Keywords = append(criteria.Keywords,
 			strings.Split(keywords, ",")...)
 	}
 
-	logLevels := bone.GetValue(r, "levels")
+	logLevels := vars["levels"]
 	if len(logLevels) > 0 {
 		criteria.LogLevels = append(criteria.LogLevels,
 			strings.Split(logLevels, ",")...)
 		for _, l := range criteria.LogLevels {
-			if !models.IsValidLogLevel(l) {
+			if !logger.IsValidLogLevel(l) {
 				s := fmt.Sprintf("Invalid log level '%s'", l)
 				w.WriteHeader(http.StatusBadRequest)
 				io.WriteString(w, s)
@@ -152,14 +188,6 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 	logs, err := dbClient.find(*criteria)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if criteria.Limit > 0 && len(logs) > criteria.Limit {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		s := fmt.Sprintf("More logs than requested, %d with limit %d",
-			len(logs), criteria.Limit)
-		io.WriteString(w, s)
 		return
 	}
 
@@ -189,31 +217,63 @@ func delLogs(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, strconv.Itoa(removed))
 }
 
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	s := telemetry.NewSystemUsage()
+
+	encode(s, w)
+
+	return
+}
+
+// Helper function for encoding things for returning from REST calls
+func encode(i interface{}, w http.ResponseWriter) {
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	err := enc.Encode(i)
+	// Problems encoding
+	if err != nil {
+		LoggingClient.Error("Error encoding the data: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 // HTTPServer function
 func HttpServer() http.Handler {
-	mux := bone.New()
-	mv1 := mux.Prefix("/api/v1")
+	r := mux.NewRouter()
 
-	mv1.Get("/ping", http.HandlerFunc(replyPing))
+	// Ping Resource
+	r.HandleFunc(clients.ApiPingRoute, pingHandler).Methods(http.MethodGet)
 
-	mv1.Post("/logs", http.HandlerFunc(addLog))
-	mv1.Get("/logs/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/labels/:labels/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/originServices/:services/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/keywords/:keywords/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/logLevels/:levels/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/logLevels/:levels/originServices/:services/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/logLevels/:levels/originServices/:services/labels/:labels/:start/:end/:limit", http.HandlerFunc(getLogs))
-	mv1.Get("/logs/logLevels/:levels/originServices/:services/labels/:labels/keywords/:keywords/:start/:end/:limit", http.HandlerFunc(getLogs))
+	// Configuration
+	r.HandleFunc(clients.ApiConfigRoute, configHandler).Methods(http.MethodGet)
 
-	mv1.Delete("/logs/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/keywords/:keywords/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/labels/:labels/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/originServices/:services/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/logLevels/:levels/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/logLevels/:levels/originServices/:services/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/logLevels/:levels/originServices/:services/labels/:labels/:start/:end", http.HandlerFunc(delLogs))
-	mv1.Delete("/logs/logLevels/:levels/originServices/:services/labels/:labels/keywords/:keywords/:start/:end", http.HandlerFunc(delLogs))
-	return mux
+	// Metrics
+	r.HandleFunc(clients.ApiMetricsRoute, metricsHandler).Methods(http.MethodGet)
+
+	// Logs
+	r.HandleFunc(clients.ApiLoggingRoute, addLog).Methods(http.MethodPost)
+
+	r.HandleFunc(clients.ApiLoggingRoute, getLogs).Methods(http.MethodGet)
+	l := r.PathPrefix(clients.ApiLoggingRoute).Subrouter()
+	l.HandleFunc("/{limit}", getLogs).Methods(http.MethodGet)
+	l.HandleFunc("/{start}/{end}/{limit}", getLogs).Methods(http.MethodGet)
+	l.HandleFunc("/originServices/{services}/{start}/{end}/{limit}", getLogs).Methods(http.MethodGet)
+	l.HandleFunc("/keywords/{keywords}/{start}/{end}/{limit}", getLogs).Methods(http.MethodGet)
+	l.HandleFunc("/logLevels/{levels}/{start}/{end}/{limit}", getLogs).Methods(http.MethodGet)
+	l.HandleFunc("/logLevels/{levels}/originServices/{services}/{start}/{end}/{limit}", getLogs).Methods(http.MethodGet)
+
+	l.HandleFunc("/{start}/{end}", delLogs).Methods(http.MethodDelete)
+	l.HandleFunc("/keywords/{keywords}/{start}/{end}", delLogs).Methods(http.MethodDelete)
+	l.HandleFunc("/originServices/{services}/{start}/{end}", delLogs).Methods(http.MethodDelete)
+	l.HandleFunc("/logLevels/{levels}/{start}/{end}", delLogs).Methods(http.MethodDelete)
+	l.HandleFunc("/logLevels/{levels}/originServices/{services}/{start}/{end}", delLogs).Methods(http.MethodDelete)
+	l.HandleFunc("/removeold/age/{age}", delLogs).Methods(http.MethodDelete)
+
+	r.Use(correlation.ManageHeader)
+	r.Use(correlation.OnResponseComplete)
+	r.Use(correlation.OnRequestBegin)
+
+	return r
 }

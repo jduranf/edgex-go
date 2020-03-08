@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,9 +14,14 @@
 
 package models
 
-import "testing"
+import (
+	"testing"
 
-var TestProfileProperty = ProfileProperty{Value: TestPropertyValue, Units: TestUnits}
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+)
+
+var TestMediaType = clients.ContentTypeCBOR
+var TestProfileProperty = ProfileProperty{Value: TestPropertyValue, Units: TestUnits, MediaType: TestMediaType}
 
 func TestProfileProperty_String(t *testing.T) {
 	tests := []struct {
@@ -26,7 +31,9 @@ func TestProfileProperty_String(t *testing.T) {
 	}{
 		{"profile property to string", TestProfileProperty,
 			"{\"value\":" + TestPropertyValue.String() +
-				",\"units\":" + TestUnits.String() + "}"},
+				",\"units\":" + TestUnits.String() +
+				",\"mediaType\":" + "\"" + TestMediaType + "\"" +
+				"}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

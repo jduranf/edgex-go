@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,7 +16,6 @@ package models
 
 import (
 	"reflect"
-	"strconv"
 	"testing"
 )
 
@@ -26,17 +25,15 @@ var TestPVMinimum = "-99.99"
 var TestPVMaximum = "199.99"
 var TestPVDefaultValue = "0.00"
 var TestPVSize = "8"
-var TestPVWord = "2"
-var TestPVLSB = "false"
 var TestPVMask = "0x00"
 var TestPVShift = "0"
 var TestPVScale = "1.0"
 var TestPVOffset = "0.0"
 var TestPVBase = "0"
 var TestPVAssertion = "0"
-var TestPVSigned = true
 var TestPVPrecision = "1"
-var TestPropertyValue = PropertyValue{Type: TestPVType, ReadWrite: TestPVReadWrite, Minimum: TestPVMinimum, Maximum: TestPVMaximum, DefaultValue: TestPVDefaultValue, Size: TestPVSize, Word: TestPVWord, LSB: TestPVLSB, Mask: TestPVMask, Shift: TestPVShift, Scale: TestPVScale, Offset: TestPVOffset, Base: TestPVBase, Assertion: TestPVAssertion, Signed: TestPVSigned, Precision: TestPVPrecision}
+var TestPVFloatEncoding = "Base64"
+var TestPropertyValue = PropertyValue{Type: TestPVType, ReadWrite: TestPVReadWrite, Minimum: TestPVMinimum, Maximum: TestPVMaximum, DefaultValue: TestPVDefaultValue, Size: TestPVSize, Mask: TestPVMask, Shift: TestPVShift, Scale: TestPVScale, Offset: TestPVOffset, Base: TestPVBase, Assertion: TestPVAssertion, Precision: TestPVPrecision, FloatEncoding: TestPVFloatEncoding}
 
 func TestPropertyValue_MarshalJSON(t *testing.T) {
 	var emptyPropertyValue = PropertyValue{}
@@ -79,66 +76,19 @@ func TestPropertyValue_String(t *testing.T) {
 				",\"maximum\":\"" + TestPVMaximum + "\"" +
 				",\"defaultValue\":\"" + TestPVDefaultValue + "\"" +
 				",\"size\":\"" + TestPVSize + "\"" +
-				",\"word\":\"" + TestPVWord + "\"" +
-				",\"lsb\":\"" + TestPVLSB + "\"" +
 				",\"mask\":\"" + TestPVMask + "\"" +
 				",\"shift\":\"" + TestPVShift + "\"" +
 				",\"scale\":\"" + TestPVScale + "\"" +
 				",\"offset\":\"" + TestPVOffset + "\"" +
 				",\"base\":\"" + TestPVBase + "\"" +
 				",\"assertion\":\"" + TestPVAssertion + "\"" +
-				",\"signed\":" + strconv.FormatBool(TestPVSigned) +
-				",\"precision\":\"" + TestPVPrecision + "\"}"},
+				",\"precision\":\"" + TestPVPrecision + "\"" +
+				",\"floatEncoding\":\"" + TestPVFloatEncoding + "\"}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.pv.String(); got != tt.want {
 				t.Errorf("PropertyValue.String() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestPropertyValue_UnmarshalJSON(t *testing.T) {
-	var resultTestBytes = []byte(TestPropertyValue.String())
-
-	type args struct {
-		data []byte
-	}
-	tests := []struct {
-		name    string
-		p       *PropertyValue
-		args    args
-		wantErr bool
-	}{
-		{"unmarshal normal property value with success", &TestPropertyValue, args{resultTestBytes}, false},
-		{"unmarshal normal property value failed", &TestPropertyValue, args{[]byte("{nonsense}")}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.p.UnmarshalJSON(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("PropertyValue.UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestPropertyValue_UnmarshalYAML(t *testing.T) {
-	type args struct {
-		unmarshal func(interface{}) error
-	}
-	tests := []struct {
-		name    string
-		p       *PropertyValue
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.p.UnmarshalYAML(tt.args.unmarshal); (err != nil) != tt.wantErr {
-				t.Errorf("PropertyValue.UnmarshalYAML() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

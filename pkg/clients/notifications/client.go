@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -11,14 +11,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
+
 package notifications
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
+	"context"
+
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 type CategoryEnum string
@@ -44,24 +43,14 @@ const (
 	ESCALATED StatusEnum = "ESCALATED"
 )
 
-// Common http const
-const (
-	ContentType        = "Content-Type"
-	ContentTypeJsonVal = "application/json"
-)
-
-const (
-	NotificationApiPath = "/api/v1/notification"
-	UrlPattern          = "http://%s:%d%s"
-)
-
-// Struct to represent the notifications client
+// Interface defining behavior for the notifications client
 type NotificationsClient interface {
-	SendNotification(n Notification) error
+	SendNotification(n Notification, ctx context.Context) error
 }
 
-//Named HttpClient instead of RestClient on purpose since there is only one POST method
-type notificationsHttpClient struct {
+// Type struct for REST-specific implementation of the NotificationsClient interface
+type notificationsRestClient struct {
+	url string
 }
 
 // Struct to represent a notification being sent to the notifications service
@@ -79,51 +68,13 @@ type Notification struct {
 	Modified    int          `json:"modified,omitempty"` // The last modification timestamp
 }
 
-var notificationsClient NotificationsClient
-
-func GetNotificationsClient() NotificationsClient {
-	if notificationsClient == nil {
-		notificationsClient = &notificationsHttpClient{}
-	}
-	return notificationsClient
+func NewNotificationsClient(url string) NotificationsClient {
+	n := notificationsRestClient{url: url}
+	return &n
 }
 
 // Send a notification to the notifications service
-func (nc *notificationsHttpClient) SendNotification(n Notification) error {
-	client := &http.Client{}
-
-	// Get the JSON request body
-	requestBody, err := json.Marshal(n)
-	if err != nil {
-		return err
-	}
-
-	// Create the request
-	remoteNotificationServiceUrl := fmt.Sprintf(UrlPattern, clientConfig.serviceHost, clientConfig.servicePort, NotificationApiPath)
-
-	return doPost(remoteNotificationServiceUrl, bytes.NewBuffer(requestBody), client)
-}
-
-// Function to do post request
-func doPost(url string, binaryReqBody io.Reader, client *http.Client) error {
-	req, err := http.NewRequest(http.MethodPost, url, binaryReqBody)
-	req.Header.Add(ContentType, ContentTypeJsonVal)
-
-	if err != nil {
-		return err
-	}
-
-	return makeRequest(client, req)
-}
-
-// Function to actually make the HTTP request
-func makeRequest(client *http.Client, req *http.Request) error {
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	return nil
+func (nc *notificationsRestClient) SendNotification(n Notification, ctx context.Context) error {
+	_, err := clients.PostJsonRequest(nc.url, n, ctx)
+	return err
 }

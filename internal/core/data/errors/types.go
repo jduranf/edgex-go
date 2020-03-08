@@ -13,7 +13,11 @@
  *******************************************************************************/
 package errors
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
+)
 
 type ErrEventNotFound struct {
 	id string
@@ -40,18 +44,6 @@ func NewErrValueDescriptorInvalid(name string, err error) error {
 	return &ErrValueDescriptorInvalid{name: name, err: err}
 }
 
-type ErrValueDescriptorNotFound struct {
-	id string
-}
-
-func (e ErrValueDescriptorNotFound) Error() string {
-	return fmt.Sprintf("no value descriptor for reading '%s'", e.id)
-}
-
-func NewErrValueDescriptorNotFound(id string) error {
-	return &ErrValueDescriptorNotFound{id: id}
-}
-
 type ErrUnsupportedDatabase struct {
 	dbType string
 }
@@ -76,14 +68,49 @@ func NewErrUnsupportedPublisher(pubType string) error {
 	return &ErrUnsupportedPublisher{pubType: pubType}
 }
 
-type ErrValueDescriptorInUse struct {
+type ErrLimitExceeded struct {
+	limit int
+}
+
+func (e ErrLimitExceeded) Error() string {
+	return fmt.Sprintf("limit %d exceeds configured max", e.limit)
+}
+
+func NewErrLimitExceeded(limit int) error {
+	return &ErrLimitExceeded{limit: limit}
+}
+
+type ErrJsonDecoding struct {
 	name string
 }
 
-func (e ErrValueDescriptorInUse) Error() string {
-	return fmt.Sprintf("value descriptor '%s' still referenced by readings", e.name)
+func (e ErrJsonDecoding) Error() string {
+	return fmt.Sprintf("error decoding the reading: %s", e.name)
 }
 
-func NewErrValueDescriptorInUse(name string) error {
-	return &ErrValueDescriptorInUse{name: name}
+func NewErrJsonDecoding(name string) error {
+	return &ErrJsonDecoding{name: name}
+}
+
+type ErrDbNotFound struct {
+}
+
+func (e ErrDbNotFound) Error() string {
+	return db.ErrNotFound.Error()
+}
+
+func NewErrDbNotFound() error {
+	return &ErrDbNotFound{}
+}
+
+type ErrInvalidId struct {
+	id string
+}
+
+func (e ErrInvalidId) Error() string {
+	return fmt.Sprintf("invalid ID: %s", e.id)
+}
+
+func NewErrInvalidId(id string) error {
+	return &ErrInvalidId{id: id}
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2017 Dell Inc.
+ * Copyright 2019 Dell Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,6 +15,8 @@
 package models
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
@@ -22,7 +24,8 @@ import (
 
 var TestValueDescriptorName = "Temperature"
 var TestValue = "45"
-var TestReading = Reading{Pushed: 123, Created: 123, Origin: 123, Modified: 123, Device: TestDeviceName, Name: TestValueDescriptorName, Value: TestValue}
+var TestBinaryValue = []byte{0xbf }
+var TestReading = Reading{Pushed: 123, Created: 123, Origin: 123, Modified: 123, Device: TestDeviceName, Name: TestValueDescriptorName, Value: TestValue, BinaryValue: TestBinaryValue}
 
 func TestReading_MarshalJSON(t *testing.T) {
 	var emptyReading = Reading{}
@@ -53,20 +56,21 @@ func TestReading_MarshalJSON(t *testing.T) {
 }
 
 func TestReading_String(t *testing.T) {
+	var binarySlice, _ = json.Marshal(TestReading.BinaryValue)
 	tests := []struct {
 		name string
 		r    Reading
 		want string
 	}{
 		{"reading to string", TestReading,
-			"{\"id\":\"\"" +
-				",\"pushed\":" + strconv.FormatInt(TestReading.Pushed, 10) +
+			"{\"pushed\":" + strconv.FormatInt(TestReading.Pushed, 10) +
 				",\"created\":" + strconv.FormatInt(TestReading.Created, 10) +
 				",\"origin\":" + strconv.FormatInt(TestReading.Origin, 10) +
 				",\"modified\":" + strconv.FormatInt(TestReading.Modified, 10) +
 				",\"device\":\"" + TestDeviceName + "\"" +
 				",\"name\":\"" + TestValueDescriptorName + "\"" +
 				",\"value\":\"" + TestValue + "\"" +
+				",\"binaryValue\":" + fmt.Sprint(string(binarySlice)) +
 				"}"},
 	}
 	for _, tt := range tests {

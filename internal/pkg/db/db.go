@@ -21,14 +21,18 @@ import (
 
 const (
 	// Databases
-	MongoDB  = "mongodb"
-	InfluxDB = "influxdb"
-	MemoryDB = "memorydb"
+	MongoDB = "mongodb"
+	BoltDB  = "boltdb"
 
 	// Data
-	EventsCollection          = "event"
-	ReadingsCollection        = "reading"
-	ValueDescriptorCollection = "valueDescriptor"
+	EventsCollection   = "event"
+	ReadingsCollection = "reading"
+
+	// Export
+	ExportCollection = "exportConfiguration"
+
+	// Logging
+	LogsCollection = "logEntry"
 
 	// Metadata
 	Device           = "device"
@@ -36,19 +40,19 @@ const (
 	DeviceService    = "deviceService"
 	Addressable      = "addressable"
 	Command          = "command"
-	DeviceReport     = "deviceReport"
-	ScheduleEvent    = "scheduleEvent"
-	Schedule         = "schedule"
 	ProvisionWatcher = "provisionWatcher"
+	Interval         = "interval"
+	IntervalAction   = "intervalAction"
 )
 
 var (
 	ErrNotFound            = errors.New("Item not found")
-	ErrUnsupportedDatabase = errors.New("Unsuppored database type")
+	ErrUnsupportedDatabase = errors.New("Unsupported database type")
 	ErrInvalidObjectId     = errors.New("Invalid object ID")
 	ErrNotUnique           = errors.New("Resource already exists")
 	ErrCommandStillInUse   = errors.New("Command is still in use by device profiles")
 	ErrSlugEmpty           = errors.New("Slug is nil or empty")
+	ErrNameEmpty           = errors.New("Name is required")
 )
 
 type Configuration struct {

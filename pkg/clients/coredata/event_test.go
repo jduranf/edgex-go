@@ -13,27 +13,26 @@
  * the License.
  *
  *******************************************************************************/
+
 package coredata
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 const (
-	MarkPushedUriPath = "/api/v1/event/id/5aae1f4fe4b0d019b26a56b8"
-	EventUriPath      = "/api/v1/event"
-	TestEventDevice1  = "device1"
-	TestEventDevice2  = "device2"
+	TestId           = "5aae1f4fe4b0d019b26a56b8"
+	TestEventDevice1 = "device1"
+	TestEventDevice2 = "device2"
 )
 
 func TestMarkPushed(t *testing.T) {
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
@@ -41,24 +40,18 @@ func TestMarkPushed(t *testing.T) {
 			t.Errorf("expected http method is PUT, active http method is : %s", r.Method)
 		}
 
-		if r.URL.EscapedPath() != MarkPushedUriPath {
-			t.Errorf("expected uri path is %s, actual uri path is %s", MarkPushedUriPath, r.URL.EscapedPath())
+		url := clients.ApiEventRoute + "/id/" + TestId
+		if r.URL.EscapedPath() != url {
+			t.Errorf("expected uri path is %s, actual uri path is %s", url, r.URL.EscapedPath())
 		}
 	}))
 
 	defer ts.Close()
 
-	url := ts.URL + EventUriPath
+	url := ts.URL + clients.ApiEventRoute
+	ec := NewEventClient(url)
 
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreDataServiceKey,
-		Path:        EventUriPath,
-		UseRegistry: false,
-		Url:         url}
-
-	ec := NewEventClient(params, mockEventEndpoint{})
-
-	err := ec.MarkPushed("5aae1f4fe4b0d019b26a56b8")
+	err := ec.MarkPushed(TestId, context.Background())
 
 	if err != nil {
 		t.FailNow()
@@ -73,8 +66,8 @@ func TestGetEvents(t *testing.T) {
 			t.Errorf("expected http method is GET, active http method is : %s", r.Method)
 		}
 
-		if r.URL.EscapedPath() != EventUriPath {
-			t.Errorf("expected uri path is %s, actual uri path is %s", EventUriPath, r.URL.EscapedPath())
+		if r.URL.EscapedPath() != clients.ApiEventRoute {
+			t.Errorf("expected uri path is %s, actual uri path is %s", clients.ApiEventRoute, r.URL.EscapedPath())
 		}
 
 		w.Write([]byte("[" +
@@ -90,17 +83,10 @@ func TestGetEvents(t *testing.T) {
 
 	defer ts.Close()
 
-	url := ts.URL + EventUriPath
+	url := ts.URL + clients.ApiEventRoute
+	ec := NewEventClient(url)
 
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreDataServiceKey,
-		Path:        EventUriPath,
-		UseRegistry: false,
-		Url:         url}
-
-	ec := NewEventClient(params, mockEventEndpoint{})
-
-	eArr, err := ec.Events()
+	eArr, err := ec.Events(context.Background())
 	if err != nil {
 		t.FailNow()
 	}
@@ -117,42 +103,5 @@ func TestGetEvents(t *testing.T) {
 	e2 := eArr[1]
 	if e2.Device != TestEventDevice2 {
 		t.Errorf("expected second events's device is : %s, actual device is : %s ", TestEventDevice2, e2.Device)
-	}
-}
-
-func TestNewEventClientWithConsul(t *testing.T) {
-	deviceUrl := "http://localhost:48080" + EventUriPath
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreDataServiceKey,
-		Path:        EventUriPath,
-		UseRegistry: true,
-		Url:         deviceUrl}
-
-	ec := NewEventClient(params, mockEventEndpoint{})
-
-	r, ok := ec.(*EventRestClient)
-	if !ok {
-		t.Error("ec is not of expected type")
-	}
-
-	time.Sleep(25 * time.Millisecond)
-	if len(r.url) == 0 {
-		t.Error("url was not initialized")
-	} else if r.url != deviceUrl {
-		t.Errorf("unexpected url value %s", r.url)
-	}
-}
-
-type mockEventEndpoint struct {
-}
-
-func (e mockEventEndpoint) Monitor(params types.EndpointParams, ch chan string) {
-	switch params.ServiceKey {
-	case internal.CoreDataServiceKey:
-		url := fmt.Sprintf("http://%s:%v%s", "localhost", 48080, params.Path)
-		ch <- url
-		break
-	default:
-		ch <- ""
 	}
 }

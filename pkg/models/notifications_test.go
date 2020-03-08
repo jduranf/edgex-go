@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 Dell Technologies Inc.
+ * Copyright 2019 Dell Technologies Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -70,8 +70,8 @@ func TestNotification_String(t *testing.T) {
 		notification *Notification
 		want         string
 	}{
-		{"test empty notification to string", &TestEmptyNotification, "{\"created\":0,\"modified\":0,\"origin\":0,\"id\":null}"},
-		{"test notification to string", &TestNotification, "{\"created\":123,\"modified\":123,\"origin\":0,\"id\":null,\"slug\":\"test slug\",\"sender\":\"test sender\",\"category\":\"SECURITY\",\"severity\":\"CRITICAL\",\"content\":\"test content\",\"description\":\"test description\",\"status\":\"NEW\",\"labels\":[\"label1\",\"labe2\"]}"},
+		{"test empty notification to string", &TestEmptyNotification, "{\"id\":null}"},
+		{"test notification to string", &TestNotification, "{\"created\":123,\"modified\":123,\"id\":null,\"slug\":\"test slug\",\"sender\":\"test sender\",\"category\":\"SECURITY\",\"severity\":\"CRITICAL\",\"content\":\"test content\",\"description\":\"test description\",\"status\":\"NEW\",\"labels\":[\"label1\",\"labe2\"]}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

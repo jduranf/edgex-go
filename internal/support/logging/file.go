@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
-	"github.com/edgexfoundry/edgex-go/internal/support/logging/models"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 const (
@@ -34,6 +35,12 @@ func (fl *fileLog) closeSession() {
 func (fl *fileLog) add(le models.LogEntry) error {
 	if fl.out == nil {
 		var err error
+		//First check to see if the specified directory exists
+		//File won't be written without directory.
+		path := filepath.Dir(fl.filename)
+		if _, err = os.Stat(path); os.IsNotExist(err) {
+			os.MkdirAll(path, 0755)
+		}
 		fl.out, err = os.OpenFile(fl.filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			//fmt.Println("Error opening log file: ", fl.filename, err)
@@ -87,15 +94,21 @@ func (fl *fileLog) remove(criteria matchCriteria) (int, error) {
 	}
 
 	tmpFile.Close()
-	err = os.Rename(tmpFilename, fl.filename)
-	if err != nil {
-		//fmt.Printf("Error renaming %s to %s: %v", tmpFilename, fl.filename, err)
-		return 0, err
+	if count != 0 {
+		err = os.Rename(tmpFilename, fl.filename)
+		if err != nil {
+			//fmt.Printf("Error renaming %s to %s: %v", tmpFilename, fl.filename, err)
+			return 0, err
+		}
+
+		// Close old file to open the new one when writing next log
+		if fl.out != nil {
+			fl.out.Close()
+			fl.out = nil
+		}
+
 	}
 
-	// Close old file to open the new one when writing next log
-	fl.out.Close()
-	fl.out = nil
 	return count, nil
 }
 
@@ -115,6 +128,10 @@ func (fl *fileLog) find(criteria matchCriteria) ([]models.LogEntry, error) {
 		if err == nil {
 			if criteria.match(le) {
 				logs = append(logs, le)
+
+				if criteria.Limit != 0 && len(logs) >= criteria.Limit {
+					break
+				}
 			}
 		}
 	}

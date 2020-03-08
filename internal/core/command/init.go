@@ -1,5 +1,6 @@
 /*******************************************************************************
  * Copyright 2017 Dell Inc.
+ * Copyright (c) 2019 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,17 +15,16 @@
 package command
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/metadata"
+
 	"github.com/edgexfoundry/edgex-go/internal"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/consul"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logging"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/metadata"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
 var Configuration *ConfigurationStruct
@@ -32,27 +32,27 @@ var LoggingClient logger.LoggingClient
 var mdc metadata.DeviceClient
 var cc metadata.CommandClient
 
-func Retry(useConsul bool, useProfile string, timeout int, wait *sync.WaitGroup, ch chan error) {
+func Retry(useProfile string, timeout int, wait *sync.WaitGroup, ch chan error) {
 	until := time.Now().Add(time.Millisecond * time.Duration(timeout))
 	for time.Now().Before(until) {
 		var err error
-		//When looping, only handle configuration if it hasn't already been set.
+		// When looping, only handle configuration if it hasn't already been set.
 		if Configuration == nil {
-			Configuration, err = initializeConfiguration(useConsul, useProfile)
+			Configuration, err = initializeConfiguration(useProfile)
 			if err != nil {
 				ch <- err
-				if !useConsul {
-					//Error occurred when attempting to read from local filesystem. Fail fast.
-					close(ch)
-					wait.Done()
-					return
-				}
+
+				// Error occurred when attempting to read from local filesystem. Fail fast.
+				close(ch)
+				wait.Done()
+				return
 			} else {
 				// Setup Logging
 				logTarget := setLoggingTarget()
-				LoggingClient = logger.NewClient(internal.CoreCommandServiceKey, Configuration.EnableRemoteLogging, logTarget)
-				//Initialize service clients
-				initializeClients(useConsul)
+				LoggingClient = logger.NewClient(internal.CoreCommandServiceKey, Configuration.Logging.EnableRemote, logTarget, Configuration.Writable.LogLevel)
+
+				// Initialize service clients
+				initializeClients()
 			}
 		}
 
@@ -71,67 +71,37 @@ func Init() bool {
 	if Configuration == nil {
 		return false
 	}
+
+	go telemetry.StartCpuUsageAverage()
+
 	return true
 }
 
-func initializeConfiguration(useConsul bool, useProfile string) (*ConfigurationStruct, error) {
-	//We currently have to load configuration from filesystem first in order to obtain ConsulHost/Port
-	conf := &ConfigurationStruct{}
-	err := config.LoadFromFile(useProfile, conf)
+func Destruct() {
+}
+
+func initializeConfiguration(useProfile string) (*ConfigurationStruct, error) {
+	configuration := &ConfigurationStruct{}
+	err := config.LoadFromFile(useProfile, configuration)
 	if err != nil {
 		return nil, err
 	}
 
-	if useConsul {
-		err := connectToConsul(conf)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return conf, nil
+	return configuration, nil
 }
 
-func connectToConsul(conf *ConfigurationStruct) error {
-	// Initialize service on Consul
-	err := consulclient.ConsulInit(consulclient.ConsulConfig{
-		ServiceName:    internal.CoreCommandServiceKey,
-		ServicePort:    conf.ServicePort,
-		ServiceAddress: conf.ServiceAddress,
-		CheckAddress:   conf.ConsulCheckAddress,
-		CheckInterval:  conf.CheckInterval,
-		ConsulAddress:  conf.ConsulHost,
-		ConsulPort:     conf.ConsulPort,
-	})
-
-	if err != nil {
-		return fmt.Errorf("connection to Consul could not be made: %v", err.Error())
-	} else {
-		// Update configuration data from Consul
-		if err := consulclient.CheckKeyValuePairs(conf, internal.CoreCommandServiceKey, strings.Split(conf.ConsulProfilesActive, ";")); err != nil {
-			return fmt.Errorf("error getting key/values from Consul: %v", err.Error())
-		}
-	}
-	return nil
-}
-
-func initializeClients(useConsul bool) {
+func initializeClients() {
 	// Create metadata clients
-	params := types.EndpointParams{
-		ServiceKey:  internal.CoreMetaDataServiceKey,
-		Path:        Configuration.MetaDevicePath,
-		UseRegistry: useConsul,
-		Url:         Configuration.MetaDeviceURL}
+	url := Configuration.Clients["Metadata"].Url() + clients.ApiDeviceRoute
+	mdc = metadata.NewDeviceClient(url)
 
-	mdc = metadata.NewDeviceClient(params, types.Endpoint{})
-	params.Path = Configuration.MetaCommandPath
-	params.Url = Configuration.MetaCommandURL
-	cc = metadata.NewCommandClient(params, types.Endpoint{})
+	url = Configuration.Clients["Metadata"].Url() + clients.ApiCommandRoute
+	cc = metadata.NewCommandClient(url)
 }
 
 func setLoggingTarget() string {
-	logTarget := Configuration.LoggingRemoteURL
-	if !Configuration.EnableRemoteLogging {
-		return Configuration.LogFile
+	if Configuration.Logging.EnableRemote {
+		return Configuration.Clients["Logging"].Url() + clients.ApiLoggingRoute
 	}
-	return logTarget
+	return Configuration.Logging.File
 }

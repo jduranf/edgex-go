@@ -13,16 +13,22 @@
  *******************************************************************************/
 package internal
 
-const ConfigFileDefaultProfile = "configuration.toml"
-const ConfigFileDockerProfile = "configuration-docker.toml"
+const (
+	BootTimeoutDefault = 30000
+	ConfigFileName     = "configuration.toml"
+	LogDurationKey     = "duration"
+)
 
-const ServiceKeyPrefix = "edgex-"
-const ConfigSeedServiceKey = "edgex-config-seed"
-const CoreCommandServiceKey = "edgex-core-command"
-const CoreDataServiceKey = "edgex-core-data"
-const CoreMetaDataServiceKey = "edgex-core-metadata"
-const ExportClientServiceKey = "edgex-export-client"
-const ExportDistroServiceKey = "edgex-export-distro"
-const SupportLoggingServiceKey = "edgex-support-logging"
-const SupportNotificationsServiceKey = "edgex-support-notifications"
-const SystemManagementAgentServiceKey = "edgex-sys-mgmt-agent"
+const (
+	ServiceKeyPrefix                = "edgex-"
+	CoreCommandServiceKey           = "edgex-core-command"
+	CoreDataServiceKey              = "edgex-core-data"
+	CoreMetaDataServiceKey          = "edgex-core-metadata"
+	ExportClientServiceKey          = "edgex-export-client"
+	ExportDistroServiceKey          = "edgex-export-distro"
+	SupportLoggingServiceKey        = "edgex-support-logging"
+	SupportNotificationsServiceKey  = "edgex-support-notifications"
+	SystemManagementAgentServiceKey = "edgex-sys-mgmt-agent"
+	SupportSchedulerServiceKey      = "edgex-support-scheduler"
+	WritableKey                     = "/Writable"
+)

@@ -15,19 +15,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/support/logging/models"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
+	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/edgexfoundry/edgex-go/pkg/models"
 )
 
 type dummyPersist struct {
 	criteria matchCriteria
 	deleted  int
+	added    int
 }
 
 const (
 	numberOfLogs = 2
 )
 
-func (dummyPersist) add(le models.LogEntry) error {
+func (dp *dummyPersist) add(le models.LogEntry) error {
+	dp.added += 1
 	return nil
 }
 
@@ -41,7 +46,12 @@ func (dp *dummyPersist) find(criteria matchCriteria) ([]models.LogEntry, error) 
 	dp.criteria = criteria
 
 	var retValue []models.LogEntry
-	for i := 0; i < numberOfLogs; i++ {
+	max := numberOfLogs
+	if criteria.Limit < max {
+		max = criteria.Limit
+	}
+
+	for i := 0; i < max; i++ {
 		retValue = append(retValue, models.LogEntry{})
 	}
 	return retValue, nil
@@ -58,7 +68,7 @@ func TestPing(t *testing.T) {
 	ts := httptest.NewServer(HttpServer())
 	defer ts.Close()
 
-	response, err := http.Get(ts.URL + "/api/v1" + "/ping")
+	response, err := http.Get(ts.URL + clients.ApiPingRoute)
 	if err != nil {
 		t.Errorf("Error getting ping: %v", err)
 	}
@@ -77,9 +87,9 @@ func TestAddLog(t *testing.T) {
 	}{
 		{"emptyPost", "", http.StatusBadRequest},
 		{"invalidJSON", "aa", http.StatusBadRequest},
-		{"ok", `{"logLevel":"INFO","labels":null,"originService":"tests","message":"test1"}`,
+		{"ok", `{"logLevel":"INFO","originService":"tests","message":"test1"}`,
 			http.StatusAccepted},
-		{"invalidLevel", `{"logLevel":"NONE","labels":null,"originService":"tests","message":"test1"}`,
+		{"invalidLevel", `{"logLevel":"NONE","originService":"tests","message":"test1"}`,
 			http.StatusBadRequest},
 	}
 	// create test server with handler
@@ -90,7 +100,7 @@ func TestAddLog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := http.Post(ts.URL+"/api/v1"+"/logs", "application/json", strings.NewReader(tt.data))
+			response, err := http.Post(ts.URL+clients.ApiLoggingRoute, "application/json", strings.NewReader(tt.data))
 			if err != nil {
 				t.Errorf("Error sending log %v", err)
 			}
@@ -103,93 +113,96 @@ func TestAddLog(t *testing.T) {
 }
 
 func TestGetLogs(t *testing.T) {
-	var labels = []string{"label1", "label2"}
+	maxLimit := 100
+	Configuration = &ConfigurationStruct{Service: config.ServiceInfo{}}
+	Configuration.Service.ReadMaxLimit = maxLimit
+
 	var services = []string{"service1", "service2"}
 	var keywords = []string{"keyword1", "keyword2"}
-	var logLevels = []string{models.TRACE, models.DEBUG, models.WARN,
-		models.INFO, models.ERROR}
+	var logLevels = []string{logger.TraceLog, logger.DebugLog, logger.WarnLog,
+		logger.InfoLog, logger.ErrorLog}
 	var tests = []struct {
-		name     string
-		url      string
-		status   int
-		criteria matchCriteria
+		name       string
+		url        string
+		status     int
+		criteria   matchCriteria
+		limitCheck int
 	}{
 		{"withoutParams",
 			"",
 			http.StatusOK,
-			matchCriteria{}},
+			matchCriteria{},
+			maxLimit},
 		{"limit",
-			"1000",
+			"/1000",
 			http.StatusOK,
-			matchCriteria{Limit: 1000}},
-		{"limitToLow",
-			"1",
-			http.StatusRequestEntityTooLarge,
-			matchCriteria{Limit: 1}},
+			matchCriteria{Limit: 1000},
+			maxLimit},
 		{"invalidlimit",
-			"-1",
+			"/-1",
 			http.StatusBadRequest,
-			matchCriteria{Limit: 1000}},
+			matchCriteria{Limit: 1000},
+			maxLimit},
 		{"wronglimit",
-			"ten",
+			"/ten",
 			http.StatusBadRequest,
-			matchCriteria{Limit: 1000}},
+			matchCriteria{Limit: 1000},
+			maxLimit},
 		{"start/end/limit",
-			"1/2/3",
+			"/1/2/3",
 			http.StatusOK,
-			matchCriteria{Start: 1, End: 2, Limit: 3}},
+			matchCriteria{Start: 1, End: 2, Limit: 3},
+			3},
 		{"invalidstart/end/limit",
-			"-1/2/3",
+			"/-1/2/3",
 			http.StatusBadRequest,
-			matchCriteria{}},
+			matchCriteria{},
+			3},
 		{"start/invalidend/limit",
-			"1/-2/3",
+			"/1/-2/3",
 			http.StatusBadRequest,
-			matchCriteria{}},
+			matchCriteria{},
+			3},
 		{"wrongstart/end/limit",
-			"one/2/3",
+			"/one/2/3",
 			http.StatusBadRequest,
-			matchCriteria{}},
+			matchCriteria{},
+			3},
 		{"start/wrongend/limit",
-			"1/two/3",
+			"/1/two/3",
 			http.StatusBadRequest,
-			matchCriteria{}},
-		{"labels/start/end/limit",
-			"labels/label1,label2/1/2/3",
+			matchCriteria{},
+			3},
+		{"start/end/limit",
+			"/1/2/3",
 			http.StatusOK,
-			matchCriteria{Labels: labels, Start: 1, End: 2, Limit: 3}},
-		{"labelsempty/start/end/limit",
-			"labels//1/2/3",
-			http.StatusOK,
-			matchCriteria{Start: 1, End: 2, Limit: 3}},
+			matchCriteria{Start: 1, End: 2, Limit: 3},
+			3},
 		{"services/start/end/limit",
-			"originServices/service1,service2/1/2/3",
+			"/originServices/service1,service2/1/2/3",
 			http.StatusOK,
-			matchCriteria{OriginServices: services, Start: 1, End: 2, Limit: 3}},
+			matchCriteria{OriginServices: services, Start: 1, End: 2, Limit: 3},
+			3},
 		{"keywords/start/end/limit",
-			"keywords/keyword1,keyword2/1/2/3",
+			"/keywords/keyword1,keyword2/1/2/3",
 			http.StatusOK,
-			matchCriteria{Keywords: keywords, Start: 1, End: 2, Limit: 3}},
+			matchCriteria{Keywords: keywords, Start: 1, End: 2, Limit: 3},
+			3},
 		{"levels/start/end/limit",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/1/2/3",
+			"/logLevels/TRACE,DEBUG,WARN,INFO,ERROR/1/2/3",
 			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, Start: 1, End: 2, Limit: 3}},
+			matchCriteria{LogLevels: logLevels, Start: 1, End: 2, Limit: 3},
+			3},
 		{"wronglevels/start/end/limit",
-			"logLevels/INF,ERROR/1/2/3",
+			"/logLevels/INF,ERROR/1/2/3",
 			http.StatusBadRequest,
-			matchCriteria{}},
+			matchCriteria{},
+			3},
 		{"levels/services/start/end/limit",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/1/2/3",
+			"/logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/1/2/3",
 			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, OriginServices: services, Start: 1, End: 2, Limit: 3}},
-		{"levels/services/labels/start/end/limit",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/labels/label1,label2/1/2/3",
-			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, OriginServices: services, Labels: labels, Start: 1, End: 2, Limit: 3}},
-		{"levels/services/labels/keywords/start/end/limit",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/labels/label1,label2/keywords/keyword1,keyword2/1/2/3",
-			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, OriginServices: services, Labels: labels, Keywords: keywords, Start: 1, End: 2, Limit: 3}},
+			matchCriteria{LogLevels: logLevels, OriginServices: services, Start: 1, End: 2, Limit: 3},
+			3},
 	}
 	// create test server with handler
 	ts := httptest.NewServer(HttpServer())
@@ -200,7 +213,7 @@ func TestGetLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := http.Get(ts.URL + "/api/v1" + "/logs/" + tt.url)
+			response, err := http.Get(ts.URL + clients.ApiLoggingRoute + tt.url)
 			if err != nil {
 				t.Errorf("Error gettings logs %v", err)
 			}
@@ -209,21 +222,28 @@ func TestGetLogs(t *testing.T) {
 				t.Errorf("Returned status %d, should be %d", response.StatusCode, tt.status)
 			}
 			// Only test that criteria is correctly parsed if request is valid
-			if tt.status == http.StatusOK &&
-				!reflect.DeepEqual(dummy.criteria, tt.criteria) {
-				t.Errorf("Invalid criteria %v, should be %v", dummy.criteria, tt.criteria)
+			if tt.status == http.StatusOK {
+				//Apply rules for limit validation to original criteria
+				tt.criteria.Limit = checkMaxLimit(tt.criteria.Limit)
+				//Then compare against what was persisted during the test run
+				if !reflect.DeepEqual(dummy.criteria, tt.criteria) {
+					t.Errorf("Invalid criteria %v, should be %v", dummy.criteria, tt.criteria)
+				}
 			}
 		})
 	}
-
+	Configuration = nil
 }
 
 func TestRemoveLogs(t *testing.T) {
-	var labels = []string{"label1", "label2"}
+	maxLimit := 100
+	Configuration = &ConfigurationStruct{Service: config.ServiceInfo{}}
+	Configuration.Service.ReadMaxLimit = maxLimit
+
 	var services = []string{"service1", "service2"}
 	var keywords = []string{"keyword1", "keyword2"}
-	var logLevels = []string{models.TRACE, models.DEBUG, models.WARN,
-		models.INFO, models.ERROR}
+	var logLevels = []string{logger.TraceLog, logger.DebugLog, logger.WarnLog,
+		logger.InfoLog, logger.ErrorLog}
 	var tests = []struct {
 		name     string
 		url      string
@@ -250,12 +270,8 @@ func TestRemoveLogs(t *testing.T) {
 			"1/two",
 			http.StatusBadRequest,
 			matchCriteria{}},
-		{"labels/start/end",
-			"labels/label1,label2/1/2",
-			http.StatusOK,
-			matchCriteria{Labels: labels, Start: 1, End: 2}},
-		{"labelsempty/start/end",
-			"labels//1/2",
+		{"start/end",
+			"1/2",
 			http.StatusOK,
 			matchCriteria{Start: 1, End: 2}},
 		{"services/start/end",
@@ -278,14 +294,6 @@ func TestRemoveLogs(t *testing.T) {
 			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/1/2",
 			http.StatusOK,
 			matchCriteria{LogLevels: logLevels, OriginServices: services, Start: 1, End: 2}},
-		{"levels/services/labels/start/end",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/labels/label1,label2/1/2",
-			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, OriginServices: services, Labels: labels, Start: 1, End: 2}},
-		{"levels/services/labels/keywords/start/end",
-			"logLevels/TRACE,DEBUG,WARN,INFO,ERROR/originServices/service1,service2/labels/label1,label2/keywords/keyword1,keyword2/1/2",
-			http.StatusOK,
-			matchCriteria{LogLevels: logLevels, OriginServices: services, Labels: labels, Keywords: keywords, Start: 1, End: 2}},
 	}
 	// create test server with handler
 	ts := httptest.NewServer(HttpServer())
@@ -296,7 +304,7 @@ func TestRemoveLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1"+"/logs/"+tt.url, nil)
+			req, err := http.NewRequest(http.MethodDelete, ts.URL+clients.ApiLoggingRoute+"/"+tt.url, nil)
 			if err != nil {
 				t.Errorf("Error creating request logs %v", err)
 			}
@@ -309,8 +317,8 @@ func TestRemoveLogs(t *testing.T) {
 			if response.StatusCode != tt.status {
 				t.Errorf("Returned status %d, should be %d", response.StatusCode, tt.status)
 			}
-			// Only test that criteria is correctly parsed if request has status ok
-			if tt.status == http.StatusOK {
+			// Only test that criteria is correctly parsed if request has status ok and limit > 0
+			if tt.status == http.StatusOK && tt.criteria.Limit != 0 {
 				if !reflect.DeepEqual(dummy.criteria, tt.criteria) {
 					t.Errorf("Invalid criteria %v, should be %v", dummy.criteria, tt.criteria)
 				}
@@ -321,5 +329,5 @@ func TestRemoveLogs(t *testing.T) {
 			}
 		})
 	}
-
+	Configuration = nil
 }

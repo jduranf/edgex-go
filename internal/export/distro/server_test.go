@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 )
 
 func TestPing(t *testing.T) {
@@ -18,7 +20,7 @@ func TestPing(t *testing.T) {
 	ts := httptest.NewServer(httpServer())
 	defer ts.Close()
 
-	response, err := http.Get(ts.URL + "/api/v1" + "/ping")
+	response, err := http.Get(ts.URL + clients.ApiPingRoute)
 	if err != nil {
 		t.Errorf("Error getting ping: %v", err)
 	}
@@ -47,7 +49,7 @@ func TestReplyNotifyRegistrations(t *testing.T) {
 	ts := httptest.NewServer(httpServer())
 	defer ts.Close()
 
-	url := ts.URL + apiV1NotifyRegistrations
+	url := ts.URL + clients.ApiNotifyRegistrationRoute
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

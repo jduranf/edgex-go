@@ -14,25 +14,41 @@
 package metadata
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/edgexfoundry/edgex-go/pkg/clients"
 	"github.com/gorilla/mux"
+
+	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
 )
 
 func LoadRestRoutes() *mux.Router {
 	r := mux.NewRouter()
-	b := r.PathPrefix("/api/v1").Subrouter()
-	b.HandleFunc("/ping", ping)
+
+	// Ping Resource
+	r.HandleFunc(clients.ApiPingRoute, pingHandler).Methods(http.MethodGet)
+
+	// Configuration
+	r.HandleFunc(clients.ApiConfigRoute, configHandler).Methods(http.MethodGet)
+
+	// Metrics
+	r.HandleFunc(clients.ApiMetricsRoute, metricsHandler).Methods(http.MethodGet)
+
+	b := r.PathPrefix(clients.ApiBase).Subrouter()
 
 	loadDeviceRoutes(b)
 	loadDeviceProfileRoutes(b)
-	loadDeviceReportRoutes(b)
 	loadDeviceServiceRoutes(b)
-	loadScheduleEventRoutes(b)
-	loadScheduleRoutes(b)
 	loadProvisionWatcherRoutes(b)
 	loadAddressableRoutes(b)
 	loadCommandRoutes(b)
+
+	r.Use(correlation.ManageHeader)
+	r.Use(correlation.OnResponseComplete)
+	r.Use(correlation.OnRequestBegin)
+
 	return r
 }
 func loadDeviceRoutes(b *mux.Router) {
@@ -47,9 +63,7 @@ func loadDeviceRoutes(b *mux.Router) {
 	d.HandleFunc("/"+PROFILE+"/{"+PROFILEID+"}", restGetDeviceByProfileId).Methods(http.MethodGet)
 	d.HandleFunc("/"+SERVICE+"/{"+SERVICEID+"}", restGetDeviceByServiceId).Methods(http.MethodGet)
 	d.HandleFunc("/"+SERVICENAME+"/{"+SERVICENAME+"}", restGetDeviceByServiceName).Methods(http.MethodGet)
-	d.HandleFunc("/"+ADDRESSABLENAME+"/{"+ADDRESSABLENAME+"}", restGetDeviceByAddressableName).Methods(http.MethodGet)
 	d.HandleFunc("/"+PROFILENAME+"/{"+PROFILENAME+"}", restGetDeviceByProfileName).Methods(http.MethodGet)
-	d.HandleFunc("/"+ADDRESSABLE+"/{"+ADDRESSABLEID+"}", restGetDeviceByAddressableId).Methods(http.MethodGet)
 
 	// /api/v1/" + DEVICE" + ID + "
 	d.HandleFunc("/{"+ID+"}", restGetDeviceById).Methods(http.MethodGet)
@@ -104,26 +118,7 @@ func loadDeviceProfileRoutes(b *mux.Router) {
 	dpy.HandleFunc("/"+NAME+"/{"+NAME+"}", restGetYamlProfileByName).Methods(http.MethodGet)
 	dpy.HandleFunc("/{"+ID+"}", restGetYamlProfileById).Methods(http.MethodGet)
 }
-func loadDeviceReportRoutes(b *mux.Router) {
-	// /api/v1/devicereport
-	b.HandleFunc("/"+DEVICEREPORT, restGetAllDeviceReports).Methods(http.MethodGet)
-	b.HandleFunc("/"+DEVICEREPORT, restAddDeviceReport).Methods(http.MethodPost)
-	b.HandleFunc("/"+DEVICEREPORT, restUpdateDeviceReport).Methods(http.MethodPut)
 
-	dr := b.PathPrefix("/" + DEVICEREPORT).Subrouter()
-	dr.HandleFunc("/{"+ID+"}", restGetReportById).Methods(http.MethodGet)
-	dr.HandleFunc("/"+ID+"/{"+ID+"}", restDeleteReportById).Methods(http.MethodDelete)
-	dr.HandleFunc("/"+DEVICENAME+"/{"+DEVICENAME+"}", restGetDeviceReportByDeviceName).Methods(http.MethodGet)
-
-	// /api/v1/devicereport/" + NAME + "
-	drn := dr.PathPrefix("/" + NAME).Subrouter()
-	drn.HandleFunc("/{"+NAME+"}", restGetReportByName).Methods(http.MethodGet)
-	drn.HandleFunc("/{"+NAME+"}", restDeleteReportByName).Methods(http.MethodDelete)
-
-	// /api/v1/devicereport/valueDescriptorsFor/devicename
-	drvd := dr.PathPrefix("/" + VALUEDESCRIPTORSFOR).Subrouter()
-	drvd.HandleFunc("/{"+DEVICENAME+"}", restGetValueDescriptorsForDeviceName).Methods(http.MethodGet)
-}
 func loadDeviceServiceRoutes(b *mux.Router) {
 	// /api/v1/deviceservice
 	b.HandleFunc("/"+DEVICESERVICE, restGetAllDeviceServices).Methods(http.MethodGet)
@@ -134,8 +129,6 @@ func loadDeviceServiceRoutes(b *mux.Router) {
 	ds.HandleFunc("/"+ADDRESSABLENAME+"/{"+ADDRESSABLENAME+"}", restGetServiceByAddressableName).Methods(http.MethodGet)
 	ds.HandleFunc("/"+ADDRESSABLE+"/{"+ADDRESSABLEID+"}", restGetServiceByAddressableId).Methods(http.MethodGet)
 	ds.HandleFunc("/"+LABEL+"/{"+LABEL+"}", restGetServiceWithLabel).Methods(http.MethodGet)
-	ds.HandleFunc("/"+DEVICEADDRESSABLES+"/{"+ID+"}", restGetAddressablesForAssociatedDevicesById).Methods(http.MethodGet)
-	ds.HandleFunc("/"+DEVICEADDRESSABLESBYNAME+"/{"+NAME+"}", restGetAddressablesForAssociatedDevicesByName).Methods(http.MethodGet)
 
 	// /api/v1/deviceservice/" + NAME + "
 	dsn := ds.PathPrefix("/" + NAME).Subrouter()
@@ -154,51 +147,7 @@ func loadDeviceServiceRoutes(b *mux.Router) {
 	ds.HandleFunc("/{"+ID+"}/"+URLLASTREPORTED+"/{"+LASTREPORTED+"}", restUpdateServiceLastReportedById).Methods(http.MethodPut)
 	ds.HandleFunc("/{"+ID+"}/"+URLLASTCONNECTED+"/{"+LASTCONNECTED+"}", restUpdateServiceLastConnectedById).Methods(http.MethodPut)
 }
-func loadScheduleEventRoutes(b *mux.Router) {
-	// /api/v1/scheduleevent
-	b.HandleFunc("/"+SCHEDULEEVENT, restGetAllScheduleEvents).Methods(http.MethodGet)
-	b.HandleFunc("/"+SCHEDULEEVENT, restAddScheduleEvent).Methods(http.MethodPost)
-	b.HandleFunc("/"+SCHEDULEEVENT, restUpdateScheduleEvent).Methods(http.MethodPut)
-	se := b.PathPrefix("/" + SCHEDULEEVENT).Subrouter()
-	se.HandleFunc("/{"+ID+"}", restGetScheduleEventById).Methods(http.MethodGet)
 
-	// /api/v1/scheduleevent/" + NAME + "
-	sen := se.PathPrefix("/" + NAME + "").Subrouter()
-	sen.HandleFunc("/{"+NAME+"}", restDeleteScheduleEventByName).Methods(http.MethodDelete)
-	sen.HandleFunc("/{"+NAME+"}", restGetScheduleEventByName).Methods(http.MethodGet)
-
-	// /api/v1/"  + SCHEDULEEVENT + ID + "
-	seid := se.PathPrefix("/" + ID).Subrouter()
-	seid.HandleFunc("/{"+ID+"}", restDeleteScheduleEventById).Methods(http.MethodDelete)
-
-	// /api/v1/scheduleevent/addressable
-	seaid := se.PathPrefix("/" + ADDRESSABLE).Subrouter()
-	seaid.HandleFunc("/{"+ADDRESSABLEID+"}", restGetScheduleEventByAddressableId).Methods(http.MethodGet)
-
-	sean := se.PathPrefix("/" + ADDRESSABLENAME).Subrouter()
-	sean.HandleFunc("/{"+ADDRESSABLENAME+"}", restGetScheduleEventByAddressableName).Methods(http.MethodGet)
-
-	// /api/v1/scheduleevent/servicename
-	sesn := se.PathPrefix("/" + SERVICENAME).Subrouter()
-	sesn.HandleFunc("/{"+SERVICENAME+"}", restGetScheduleEventsByServiceName).Methods(http.MethodGet)
-}
-func loadScheduleRoutes(b *mux.Router) {
-	// /api/v1/schedule
-	b.HandleFunc("/"+SCHEDULE, restGetAllSchedules).Methods(http.MethodGet)
-	b.HandleFunc("/"+SCHEDULE, restAddSchedule).Methods(http.MethodPost)
-	b.HandleFunc("/"+SCHEDULE, restUpdateSchedule).Methods(http.MethodPut)
-	sch := b.PathPrefix("/" + SCHEDULE).Subrouter()
-	sch.HandleFunc("/{"+ID+"}", restGetScheduleById).Methods(http.MethodGet)
-
-	// /api/v1/schedule/" + NAME + "
-	schn := sch.PathPrefix("/" + NAME + "").Subrouter()
-	schn.HandleFunc("/{"+NAME+"}", restGetScheduleByName).Methods(http.MethodGet)
-	schn.HandleFunc("/{"+NAME+"}", restDeleteScheduleByName).Methods(http.MethodDelete)
-
-	// /api/v1/"  + SCHEDULE + ID + "
-	schid := sch.PathPrefix("/" + ID).Subrouter()
-	schid.HandleFunc("/{"+ID+"}", restDeleteScheduleById).Methods(http.MethodDelete)
-}
 func loadProvisionWatcherRoutes(b *mux.Router) {
 	b.HandleFunc("/"+PROVISIONWATCHER, restAddProvisionWatcher).Methods(http.MethodPost)
 	b.HandleFunc("/"+PROVISIONWATCHER, restUpdateProvisionWatcher).Methods(http.MethodPut)
@@ -245,7 +194,33 @@ func loadCommandRoutes(b *mux.Router) {
 	c.HandleFunc("/"+NAME+"/{"+NAME+"}", restGetCommandByName).Methods(http.MethodGet)
 	//c.HandleFunc("/" + NAME + "/{" + NAME + "}", restDeleteCommandByName).Methods(http.MethodDelete)
 }
-func ping(w http.ResponseWriter, _ *http.Request) {
+func pingHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("pong"))
+}
+
+func configHandler(w http.ResponseWriter, _ *http.Request) {
+	encode(Configuration, w)
+}
+
+func metricsHandler(w http.ResponseWriter, _ *http.Request) {
+	s := telemetry.NewSystemUsage()
+
+	encode(s, w)
+
+	return
+}
+
+// Helper function for encoding things for returning from REST calls
+func encode(i interface{}, w http.ResponseWriter) {
+	w.Header().Add("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	err := enc.Encode(i)
+	// Problems encoding
+	if err != nil {
+		LoggingClient.Error("Error encoding the data: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
