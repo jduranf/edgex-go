@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 func sendViaChannel(n models.Notification, c models.Channel, receiver string) {

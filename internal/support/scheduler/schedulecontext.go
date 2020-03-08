@@ -8,7 +8,7 @@
 package scheduler
 
 import (
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/models"
 
 	"regexp"
 	"strconv"

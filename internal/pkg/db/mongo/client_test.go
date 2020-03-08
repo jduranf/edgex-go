@@ -15,8 +15,8 @@ package mongo
 import (
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/test"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/pkg/db/test"
 )
 
 func TestMongoDB(t *testing.T) {

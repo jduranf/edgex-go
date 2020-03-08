@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/support/scheduler"
+	"github.com/jduranf/edgex-go/internal/pkg/config"
+	"github.com/jduranf/edgex-go/internal/support/scheduler"
 	"testing"
 )
 

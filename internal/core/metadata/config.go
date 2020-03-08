@@ -14,7 +14,7 @@
 package metadata
 
 import (
-	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
+	"github.com/jduranf/edgex-go/internal/pkg/config"
 )
 
 // Struct used to parse the JSON configuration file

@@ -9,7 +9,7 @@ package client
 import (
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/test"
+	"github.com/jduranf/edgex-go/internal/pkg/db/test"
 )
 
 func TestMemoryDB(t *testing.T) {

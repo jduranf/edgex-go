@@ -14,9 +14,9 @@
 package metadata
 
 import (
-	"github.com/edgexfoundry/edgex-go/internal/core/metadata/errors"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/core/metadata/errors"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 )
 
 func getAllAddressables() ([]contract.Addressable, error) {

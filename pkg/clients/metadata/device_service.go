@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 /*

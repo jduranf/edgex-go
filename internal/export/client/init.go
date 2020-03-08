@@ -12,17 +12,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/export/distro"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/clients/export/distro"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/internal/export"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/bolt"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/mongo"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/internal/export"
+	"github.com/jduranf/edgex-go/internal/pkg/config"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/pkg/db/bolt"
+	"github.com/jduranf/edgex-go/internal/pkg/db/mongo"
+	"github.com/jduranf/edgex-go/internal/pkg/telemetry"
 )
 
 // Global variables
@@ -142,16 +142,4 @@ func setLoggingTarget() string {
 		return Configuration.Clients["Logging"].Url() + clients.ApiLoggingRoute
 	}
 	return Configuration.Logging.File
-}
-
-// Return the dbClient interface
-func newDBClient(dbType string, config db.Configuration) (export.DBClient, error) {
-	switch dbType {
-	case db.MongoDB:
-		return mongo.NewClient(config), nil
-	case db.MemoryDB:
-		return &memory.MemDB{}, nil
-	default:
-		return nil, db.ErrUnsupportedDatabase
-	}
 }

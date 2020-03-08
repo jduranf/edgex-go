@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/coredata"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/clients/coredata"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/internal/pkg/config"
+	"github.com/jduranf/edgex-go/internal/pkg/telemetry"
 )
 
 var LoggingClient logger.LoggingClient

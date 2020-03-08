@@ -10,8 +10,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 const (

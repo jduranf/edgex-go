@@ -1,4 +1,4 @@
-module github.com/edgexfoundry/edgex-go
+module github.com/jduranf/edgex-go
 
 require (
 	bitbucket.org/bertimus9/systemstat v0.0.0-20180207000608-0eeff89b0690

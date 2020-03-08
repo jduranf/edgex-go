@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/pkg/models"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )

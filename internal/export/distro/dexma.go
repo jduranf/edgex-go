@@ -10,7 +10,7 @@ package distro
 import (
 	"strconv"
 
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 var DexmaParameterTable = []struct {

@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/support/scheduler/interfaces"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/support/scheduler/interfaces"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 )
 
 func TestSchedulerDB(t *testing.T, db interfaces.DBClient) {

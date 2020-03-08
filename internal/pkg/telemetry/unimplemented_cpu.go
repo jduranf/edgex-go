@@ -18,7 +18,7 @@
 package telemetry
 
 import (
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
 )
 
 var LoggingClient logger.LoggingClient

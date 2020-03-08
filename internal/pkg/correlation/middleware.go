@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
 )
 
 var LoggingClient logger.LoggingClient

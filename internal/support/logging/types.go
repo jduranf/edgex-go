@@ -9,11 +9,11 @@ package logging
 import (
 	"os"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients/types"
+	"github.com/jduranf/edgex-go/pkg/models"
 	"github.com/go-kit/kit/log"
 )
 

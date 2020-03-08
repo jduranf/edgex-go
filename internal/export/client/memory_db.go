@@ -18,8 +18,8 @@ package client
 import (
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 	"github.com/google/uuid"
 )
 

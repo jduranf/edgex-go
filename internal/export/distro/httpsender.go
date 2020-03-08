@@ -17,10 +17,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/internal/pkg/correlation/models"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 )
 
 type httpSender struct {

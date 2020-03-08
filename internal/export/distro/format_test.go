@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 )
 
 const (

@@ -9,7 +9,7 @@ package logging
 import (
 	"strings"
 
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 type matchCriteria struct {

@@ -16,7 +16,7 @@
 package notifications
 
 import (
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/models"
 )
 
 func distributeAndMark(n models.Notification) error {

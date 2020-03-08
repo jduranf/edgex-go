@@ -18,11 +18,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/mongo/models"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/pkg/db/mongo/models"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 )
 
 /* ----------------------------- Device ---------------------------------- */
@@ -964,44 +964,6 @@ func (mc MongoClient) ScrubMetadata() error {
 	_, err = s.DB(mc.database.Name).C(db.ProvisionWatcher).RemoveAll(nil)
 	if err != nil {
 		return errorMap(err)
-	}
-
-	return nil
-}
-
-// Scrub all metadata
-func (m *MongoClient) ScrubMetadata() error {
-	s := m.session.Copy()
-	defer s.Close()
-
-	_, err := s.DB(m.database.Name).C(db.Addressable).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.DB(m.database.Name).C(db.DeviceService).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-	_, err = s.DB(m.database.Name).C(db.DeviceProfile).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-	_, err = s.DB(m.database.Name).C(db.DeviceReport).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-	_, err = s.DB(m.database.Name).C(db.ScheduleEvent).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-	_, err = s.DB(m.database.Name).C(db.Device).RemoveAll(nil)
-	if err != nil {
-		return err
-	}
-	_, err = s.DB(m.database.Name).C(db.ProvisionWatcher).RemoveAll(nil)
-	if err != nil {
-		return err
 	}
 
 	return nil

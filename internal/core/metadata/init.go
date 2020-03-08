@@ -19,16 +19,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal"
-	"github.com/edgexfoundry/edgex-go/internal/core/metadata/interfaces"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/config"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/bolt"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/mongo"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/notifications"
+	"github.com/jduranf/edgex-go/internal"
+	"github.com/jduranf/edgex-go/internal/core/metadata/interfaces"
+	"github.com/jduranf/edgex-go/internal/pkg/config"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/pkg/db/bolt"
+	"github.com/jduranf/edgex-go/internal/pkg/db/mongo"
+	"github.com/jduranf/edgex-go/internal/pkg/telemetry"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients/notifications"
 )
 
 // Global variables

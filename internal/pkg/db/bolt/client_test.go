@@ -15,8 +15,8 @@ package bolt
 import (
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db/test"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/pkg/db/test"
 )
 
 func TestBoltDB(t *testing.T) {

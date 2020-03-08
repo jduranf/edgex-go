@@ -20,14 +20,14 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/clients"
+	"github.com/jduranf/edgex-go/pkg/clients/types"
+	"github.com/jduranf/edgex-go/pkg/models"
 	"github.com/gorilla/mux"
 
-	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/telemetry"
-	"github.com/edgexfoundry/edgex-go/internal/support/scheduler/errors"
+	"github.com/jduranf/edgex-go/internal/pkg/correlation"
+	"github.com/jduranf/edgex-go/internal/pkg/telemetry"
+	"github.com/jduranf/edgex-go/internal/support/scheduler/errors"
 )
 
 func LoadRestRoutes() *mux.Router {

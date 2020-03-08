@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/edgexfoundry/edgex-go/internal/core/metadata/interfaces"
-	dataBase "github.com/edgexfoundry/edgex-go/internal/pkg/db"
-	"github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/internal/core/metadata/interfaces"
+	dataBase "github.com/jduranf/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/pkg/models"
 	"github.com/google/uuid"
 )
 

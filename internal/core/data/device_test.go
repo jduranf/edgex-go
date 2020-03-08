@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/edgexfoundry/edgex-go/internal/core/data/messaging"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation/models"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
+	"github.com/jduranf/edgex-go/internal/core/data/messaging"
+	"github.com/jduranf/edgex-go/internal/pkg/correlation/models"
+	"github.com/jduranf/edgex-go/internal/pkg/db"
 
-	"github.com/edgexfoundry/edgex-go/pkg/clients/logger"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/metadata/mocks"
-	"github.com/edgexfoundry/edgex-go/pkg/clients/types"
-	contract "github.com/edgexfoundry/edgex-go/pkg/models"
+	"github.com/jduranf/edgex-go/pkg/clients/logger"
+	"github.com/jduranf/edgex-go/pkg/clients/metadata/mocks"
+	"github.com/jduranf/edgex-go/pkg/clients/types"
+	contract "github.com/jduranf/edgex-go/pkg/models"
 
 	"github.com/globalsign/mgo/bson"
 	"github.com/gorilla/mux"
